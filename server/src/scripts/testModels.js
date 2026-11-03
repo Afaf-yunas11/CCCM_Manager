@@ -1,5 +1,5 @@
 // Run from the server/ folder:  node src/scripts/testModels.js
-// Uses a throwaway DB name suffix so it never touches real data.
+// Uses a unique test DB name and leaves it in MongoDB for inspection.
 require('dotenv').config();
 const assert = require('assert');
 const mongoose = require('mongoose');
@@ -12,10 +12,19 @@ async function test(name, fn) {
 }
 
 (async () => {
-  const uri = process.env.MONGO_URI.replace(/\/([^/?]+)(\?|$)/, '/$1_test$2');
+  if (!process.env.MONGO_URI) {
+    throw new Error('MONGO_URI is missing. Add it to server/.env before running this script.');
+  }
+
+  // Add a unique test DB name to the URI path, leaving the hostname intact.
+  const testUri = new URL(process.env.MONGO_URI);
+  const configuredDbName = decodeURIComponent(testUri.pathname.replace(/^\/+/, '').split('/')[0] || 'cccm_manager');
+  const testDbName = `${configuredDbName}_test_${Date.now()}`;
+  testUri.pathname = `/${encodeURIComponent(testDbName)}`;
+  const uri = testUri.toString();
+
   await mongoose.connect(uri);
   console.log('Connected to', mongoose.connection.name);
-  await mongoose.connection.dropDatabase(); // test DB only
   await Promise.all(Object.values(M).map((m) => m.syncIndexes())); // build unique + TTL indexes
 
   const mk = (role, email) => M.User.create({ fullName: 'T ' + role, email, passwordHash: 'x', role });
@@ -108,6 +117,5 @@ async function test(name, fn) {
   });
 
   console.log(`\n${passed} tests passed`);
-  await mongoose.connection.dropDatabase();
   await mongoose.disconnect();
 })();
