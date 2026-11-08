@@ -141,10 +141,20 @@ async function respondToDisaster(req, res) {
       return res.status(403).json({ message: 'Only approved NGOs can respond to disasters.' });
     }
 
-    // Check for duplicate commitment
+    // Check for duplicate commitment (a withdrawn one may be re-committed)
     const existing = await DisasterCommitment.findOne({ disasterId: disaster._id, ngoId: ngo._id });
-    if (existing) {
+    if (existing && existing.status !== 'withdrawn') {
       return res.status(409).json({ message: 'You have already committed to this disaster.' });
+    }
+    if (existing) {
+      Object.assign(existing, {
+        workAreas,
+        plannedActivities,
+        resourcesOffered: resourcesOffered || [],
+        status: 'committed',
+      });
+      await existing.save();
+      return res.json({ message: 'Response submitted successfully.', commitment: existing });
     }
 
     const commitment = await DisasterCommitment.create({
@@ -189,4 +199,3 @@ module.exports = {
   respondToDisaster,
   getMyCommitments,
 };
-
