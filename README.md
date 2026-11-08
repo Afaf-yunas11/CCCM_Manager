@@ -39,3 +39,19 @@ The sign-up flow creates an account in a pending, unverified state and sends a s
 The screenshot uses placeholder contact details and a masked verification code.
 
 ![CCCM Manager email verification message](docs/images/email-verification.png)
+
+## Portal previews
+
+Initial portal screens have been created for camp managers, NGO partners, and administrators. These portals are starting points for the role-based workflows; some features are still in development and will be added in future updates.
+
+### Camp manager portal
+
+![CCCM Manager camp manager portal](docs/images/camp-manager-portal.png)
+
+### NGO partner portal
+
+![CCCM Manager NGO partner portal](docs/images/ngo-portal.png)
+
+### Admin portal
+
+![CCCM Manager admin portal](docs/images/admin-portal.png)
