@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import DashboardLayout from '../components/DashboardLayout';
 import AdminDisastersPage from './AdminDisastersPage';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
@@ -22,7 +23,7 @@ function StatusBadge({ status }) {
   const colors = { pending: '#d97706', approved: '#16a34a', rejected: '#dc2626' };
   return (
     <span style={{
-      display: 'inline-block', padding: '2px 10px', borderRadius: 999,
+      display: 'inline-block', padding: '3px 12px', borderRadius: 999,
       fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase',
       letterSpacing: '0.05em', background: colors[status] || '#6b7280', color: '#fff',
     }}>
@@ -69,69 +70,98 @@ function NgoApprovalsTab() {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {['pending', 'approved', 'rejected', ''].map((s) => (
-          <button key={s || 'all'} className={filterStatus === s ? 'primary-button' : 'text-button'}
-            style={{ padding: '6px 14px', fontSize: '0.85rem' }}
-            onClick={() => setFilterStatus(s)}>
-            {s || 'All'}
+      <div className="dashboard-filter-group">
+        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginRight: 4 }}>Filter by status:</span>
+        {[
+          { key: 'pending', label: 'Pending Approval' },
+          { key: 'approved', label: 'Approved' },
+          { key: 'rejected', label: 'Rejected' },
+          { key: '', label: 'All Applications' },
+        ].map((s) => (
+          <button
+            key={s.key || 'all'}
+            className={`dashboard-filter-btn ${filterStatus === s.key ? 'active' : ''}`}
+            onClick={() => setFilterStatus(s.key)}
+          >
+            {s.label}
           </button>
         ))}
       </div>
 
       {error && <p className="feedback error">{error}</p>}
-      {loading && <p className="feedback notice">Loading…</p>}
+      {loading && <p className="feedback notice">Loading NGO applications…</p>}
 
       {!loading && ngos.length === 0 && (
-        <p style={{ color: '#6b7280', textAlign: 'center', padding: '32px 0' }}>
-          No NGO applications found{filterStatus ? ` with status "${filterStatus}"` : ''}.
-        </p>
+        <div style={{ textAlign: 'center', padding: '48px 16px', color: '#64748b', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
+          <p style={{ margin: 0, fontWeight: 500 }}>No NGO applications found{filterStatus ? ` with status "${filterStatus}"` : ''}.</p>
+        </div>
       )}
 
       {ngos.length > 0 && (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.9rem' }}>
+        <div className="dashboard-table-container">
+          <table className="dashboard-table">
             <thead>
-              <tr style={{ borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
-                <th style={{ padding: '8px 12px' }}>Organization</th>
-                <th style={{ padding: '8px 12px' }}>Contact</th>
-                <th style={{ padding: '8px 12px' }}>Registered</th>
-                <th style={{ padding: '8px 12px' }}>Status</th>
-                <th style={{ padding: '8px 12px' }}>Actions</th>
+              <tr>
+                <th>Organization</th>
+                <th>Contact Representative</th>
+                <th>Registered Date</th>
+                <th>Status</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {ngos.map((ngo) => {
                 const busy = actionBusy === ngo._id;
                 return (
-                  <tr key={ngo._id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '10px 12px' }}>
-                      <strong>{ngo.organizationName}</strong>
-                      {ngo.userId && <div style={{ fontSize: '0.8rem', color: '#6b7280' }}>{ngo.userId.fullName}</div>}
+                  <tr key={ngo._id}>
+                    <td>
+                      <strong style={{ fontSize: '14px', color: '#0f172a' }}>{ngo.organizationName}</strong>
+                      {ngo.operatingAreas && ngo.operatingAreas.length > 0 && (
+                        <div style={{ fontSize: '11px', color: '#64748b', marginTop: 2 }}>
+                          Areas: {ngo.operatingAreas.join(', ')}
+                        </div>
+                      )}
                     </td>
-                    <td style={{ padding: '10px 12px' }}>{ngo.userId?.email || '—'}</td>
-                    <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                    <td>
+                      <div style={{ fontWeight: 600 }}>{ngo.userId?.fullName || '—'}</div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>{ngo.userId?.email || '—'}</div>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap', color: '#64748b' }}>
                       {ngo.userId?.createdAt ? new Date(ngo.userId.createdAt).toLocaleDateString() : '—'}
                     </td>
-                    <td style={{ padding: '10px 12px' }}><StatusBadge status={ngo.approvalStatus} /></td>
-                    <td style={{ padding: '10px 12px' }}>
+                    <td><StatusBadge status={ngo.approvalStatus} /></td>
+                    <td>
                       {ngo.approvalStatus === 'pending' && (
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button className="primary-button"
-                            style={{ padding: '4px 12px', fontSize: '0.8rem', background: '#16a34a' }}
-                            disabled={busy} onClick={() => handleAction(ngo._id, 'approved')}>
+                          <button
+                            className="primary-button"
+                            style={{
+                              margin: 0, minHeight: 'auto', padding: '6px 14px',
+                              fontSize: '12px', background: '#16a34a', borderColor: '#16a34a',
+                              width: 'auto'
+                            }}
+                            disabled={busy}
+                            onClick={() => handleAction(ngo._id, 'approved')}
+                          >
                             {busy ? '…' : 'Approve'}
                           </button>
-                          <button className="primary-button"
-                            style={{ padding: '4px 12px', fontSize: '0.8rem', background: '#dc2626' }}
-                            disabled={busy} onClick={() => handleAction(ngo._id, 'rejected')}>
+                          <button
+                            className="primary-button"
+                            style={{
+                              margin: 0, minHeight: 'auto', padding: '6px 14px',
+                              fontSize: '12px', background: '#dc2626', borderColor: '#dc2626',
+                              width: 'auto'
+                            }}
+                            disabled={busy}
+                            onClick={() => handleAction(ngo._id, 'rejected')}
+                          >
                             {busy ? '…' : 'Reject'}
                           </button>
                         </div>
                       )}
                       {ngo.approvalStatus !== 'pending' && (
-                        <span style={{ color: '#6b7280', fontSize: '0.8rem' }}>
-                          {ngo.approvedBy ? `by ${ngo.approvedBy.fullName}` : '—'}
+                        <span style={{ color: '#64748b', fontSize: '12px' }}>
+                          {ngo.approvedBy ? `Reviewed by ${ngo.approvedBy.fullName}` : 'Processed'}
                         </span>
                       )}
                     </td>
@@ -146,40 +176,32 @@ function NgoApprovalsTab() {
   );
 }
 
-/* ───── Main Admin Page (tabbed) ─────────────────────────────────────────── */
+/* ───── Main Admin Page (Full-Width Tabbed Layout) ───────────────────────── */
 export default function AdminNgosPage({ user, onLogout }) {
   const [tab, setTab] = useState('disasters');
 
   const tabs = [
-    { key: 'disasters', label: 'Disasters' },
-    { key: 'ngos', label: 'NGO Approvals' },
+    { key: 'disasters', label: 'Disaster Management' },
+    { key: 'ngos', label: 'NGO Approvals & Profiles' },
   ];
 
   return (
-    <main className="shell">
-      <section className="auth-card" style={{ maxWidth: 900, width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <div>
-            <p className="eyebrow">ADMIN PANEL</p>
-            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>CCCM Administration</h1>
-          </div>
-          <button className="text-button" onClick={onLogout}>Sign out</button>
-        </div>
-        <p style={{ color: '#6b7280', marginBottom: 16 }}>
-          Logged in as <strong>{user.fullName}</strong> ({user.email})
-        </p>
-
-        {/* Tab bar */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e5e7eb', marginBottom: 20 }}>
+    <DashboardLayout
+      user={user}
+      onLogout={onLogout}
+      portalTitle="Admin Portal"
+      title="CCCM Administration"
+      subtitle="Coordinate disaster relief operations, manage active incidents, and review partner NGO registrations."
+    >
+      <div className="dashboard-card">
+        {/* Navigation Tabs */}
+        <div className="dashboard-tab-bar">
           {tabs.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              style={{
-                padding: '10px 20px', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
-                background: 'none', border: 'none',
-                borderBottom: tab === t.key ? '2px solid #2563eb' : '2px solid transparent',
-                color: tab === t.key ? '#2563eb' : '#6b7280',
-                marginBottom: -2,
-              }}>
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`dashboard-tab-item ${tab === t.key ? 'active' : ''}`}
+            >
               {t.label}
             </button>
           ))}
@@ -187,7 +209,7 @@ export default function AdminNgosPage({ user, onLogout }) {
 
         {tab === 'disasters' && <AdminDisastersPage />}
         {tab === 'ngos' && <NgoApprovalsTab />}
-      </section>
-    </main>
+      </div>
+    </DashboardLayout>
   );
 }

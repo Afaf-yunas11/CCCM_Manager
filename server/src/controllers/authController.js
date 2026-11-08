@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const { User, EmailVerificationCode, Ngo } = require('../models');
 const { sendVerificationCode } = require('../services/email');
 
-const allowedSignupRoles = ['ngo', 'campManager', 'affectedPerson'];
+const allowedSignupRoles = ['admin', 'ngo', 'campManager', 'affectedPerson'];
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const codeLifetimeMs = 10 * 60 * 1000;
 

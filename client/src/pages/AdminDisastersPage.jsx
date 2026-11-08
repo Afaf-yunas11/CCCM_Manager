@@ -18,13 +18,13 @@ async function apiFetch(path, options = {}) {
 }
 
 const severityColors = { low: '#3b82f6', medium: '#d97706', high: '#ea580c', critical: '#dc2626' };
-const statusColors = { active: '#16a34a', underControl: '#d97706', closed: '#6b7280' };
+const statusColors = { active: '#16a34a', underControl: '#d97706', closed: '#64748b' };
 
 function Badge({ color, children }) {
   return (
     <span style={{
-      display: 'inline-block', padding: '2px 10px', borderRadius: 999,
-      fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase',
+      display: 'inline-block', padding: '3px 10px', borderRadius: 999,
+      fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
       letterSpacing: '0.05em', background: color, color: '#fff',
     }}>
       {children}
@@ -32,8 +32,14 @@ function Badge({ color, children }) {
   );
 }
 
-/* ───── Create disaster form ─────────────────────────────────────────────── */
-function CreateDisasterForm({ onCreated }) {
+const formInputStyle = {
+  width: '100%', padding: '9px 12px', borderRadius: 6,
+  border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box',
+  background: '#ffffff', color: '#0f172a'
+};
+
+/* ───── Create Disaster Form ─────────────────────────────────────────────── */
+function CreateDisasterForm({ onCreated, onCancel }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -67,69 +73,116 @@ function CreateDisasterForm({ onCreated }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ marginBottom: 24, padding: 16, background: '#f9fafb', borderRadius: 8 }}>
-      <h2 style={{ margin: '0 0 12px', fontSize: '1.1rem' }}>Create New Disaster</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+    <form onSubmit={handleSubmit} style={{
+      marginBottom: 28, padding: 24, background: '#f8fafc',
+      borderRadius: 10, border: '1px solid #e2e8f0'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
         <div>
-          <label htmlFor="d-title">Title *</label>
-          <input id="d-title" name="title" type="text" required style={inputStyle} />
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>Declare New Disaster / Emergency</h3>
+          <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+            Registered NGOs will be notified and will be able to review and respond with commitments.
+          </p>
+        </div>
+        <button type="button" onClick={onCancel} className="dashboard-filter-btn">
+          Cancel
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 16 }}>
+        <div style={{ gridColumn: 'span 2' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+            Incident Title *
+          </label>
+          <input name="title" type="text" placeholder="e.g. Flash Floods - Khyber District" required style={formInputStyle} />
         </div>
         <div>
-          <label htmlFor="d-type">Type</label>
-          <select id="d-type" name="type" style={inputStyle}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+            Disaster Category
+          </label>
+          <select name="type" style={formInputStyle}>
             <option value="flood">Flood</option>
             <option value="earthquake">Earthquake</option>
             <option value="cyclone">Cyclone</option>
             <option value="drought">Drought</option>
             <option value="wildfire">Wildfire</option>
-            <option value="other">Other</option>
+            <option value="displacement">Internal Displacement</option>
+            <option value="other">Other Incident</option>
           </select>
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+            Severity Level
+          </label>
+          <select name="severity" defaultValue="high" style={formInputStyle}>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical / Level 3</option>
+          </select>
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+            Estimated Affected Population
+          </label>
+          <input name="affectedPopulation" type="number" min="0" placeholder="e.g. 50000" style={formInputStyle} />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+            City / Tehsil
+          </label>
+          <input name="city" type="text" placeholder="e.g. Nowshera" style={formInputStyle} />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+            District
+          </label>
+          <input name="district" type="text" placeholder="e.g. Nowshera District" style={formInputStyle} />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+            Province / State
+          </label>
+          <input name="province" type="text" placeholder="e.g. KP" style={formInputStyle} />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+            Incident Date
+          </label>
+          <input name="startDate" type="date" defaultValue={new Date().toISOString().split('T')[0]} style={formInputStyle} />
         </div>
         <div style={{ gridColumn: '1 / -1' }}>
-          <label htmlFor="d-desc">Description</label>
-          <textarea id="d-desc" name="description" rows="2" style={{ ...inputStyle, resize: 'vertical' }} />
-        </div>
-        <div>
-          <label htmlFor="d-severity">Severity</label>
-          <select id="d-severity" name="severity" style={inputStyle}>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-        </div>
-        <div>
-          <label htmlFor="d-pop">Affected Population</label>
-          <input id="d-pop" name="affectedPopulation" type="number" min="0" style={inputStyle} />
-        </div>
-        <div>
-          <label htmlFor="d-city">City</label>
-          <input id="d-city" name="city" type="text" style={inputStyle} />
-        </div>
-        <div>
-          <label htmlFor="d-district">District</label>
-          <input id="d-district" name="district" type="text" style={inputStyle} />
-        </div>
-        <div>
-          <label htmlFor="d-province">Province</label>
-          <input id="d-province" name="province" type="text" style={inputStyle} />
-        </div>
-        <div>
-          <label htmlFor="d-date">Start Date</label>
-          <input id="d-date" name="startDate" type="date" style={inputStyle} />
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
+            Situation Overview & Priority Needs
+          </label>
+          <textarea
+            name="description"
+            rows="3"
+            placeholder="Details about displacement, damaged infrastructure, water and shelter needs..."
+            style={{ ...formInputStyle, resize: 'vertical' }}
+          />
         </div>
       </div>
-      {error && <p style={{ color: '#dc2626', margin: '8px 0 0' }}>{error}</p>}
-      <button className="primary-button" type="submit" disabled={busy} style={{ marginTop: 12 }}>
-        {busy ? 'Creating…' : 'Create Disaster'}
-      </button>
+
+      {error && <p className="feedback error">{error}</p>}
+      <div style={{ display: 'flex', gap: 12, marginTop: 18 }}>
+        <button
+          className="primary-button"
+          type="submit"
+          disabled={busy}
+          style={{ width: 'auto', margin: 0, padding: '10px 24px', minHeight: 'auto' }}
+        >
+          {busy ? 'Publishing…' : 'Publish Disaster Incident'}
+        </button>
+        <button type="button" onClick={onCancel} className="dashboard-signout-btn">
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }
 
-const inputStyle = { width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: '0.9rem', boxSizing: 'border-box' };
-
-/* ───── Main page ────────────────────────────────────────────────────────── */
+/* ───── Main Admin Disasters Page ────────────────────────────────────────── */
 export default function AdminDisastersPage() {
   const [disasters, setDisasters] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -137,19 +190,21 @@ export default function AdminDisastersPage() {
   const [showForm, setShowForm] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
   const [commitments, setCommitments] = useState([]);
+  const [statusFilter, setStatusFilter] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const data = await apiFetch('/admin/disasters');
+      const qs = statusFilter ? `?status=${statusFilter}` : '';
+      const data = await apiFetch(`/admin/disasters${qs}`);
       setDisasters(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -175,77 +230,176 @@ export default function AdminDisastersPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Disasters</h2>
-        <button className="primary-button" style={{ padding: '6px 16px', fontSize: '0.85rem' }}
-          onClick={() => setShowForm(!showForm)}>
-          {showForm ? 'Cancel' : '+ New Disaster'}
+      {/* Top action row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+        <div className="dashboard-filter-group" style={{ margin: 0 }}>
+          <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600, marginRight: 4 }}>Filter:</span>
+          {[
+            { key: '', label: 'All Incidents' },
+            { key: 'active', label: 'Active' },
+            { key: 'underControl', label: 'Under Control' },
+            { key: 'closed', label: 'Closed' },
+          ].map((s) => (
+            <button
+              key={s.key || 'all'}
+              className={`dashboard-filter-btn ${statusFilter === s.key ? 'active' : ''}`}
+              onClick={() => setStatusFilter(s.key)}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+
+        <button
+          className="primary-button"
+          style={{ width: 'auto', margin: 0, padding: '8px 20px', minHeight: 'auto', fontSize: '13px' }}
+          onClick={() => setShowForm(!showForm)}
+        >
+          {showForm ? 'Close Form' : '+ Declare New Disaster'}
         </button>
       </div>
 
-      {showForm && <CreateDisasterForm onCreated={() => { setShowForm(false); load(); }} />}
-
-      {error && <p className="feedback error">{error}</p>}
-      {loading && <p className="feedback notice">Loading…</p>}
-
-      {!loading && disasters.length === 0 && (
-        <p style={{ color: '#6b7280', textAlign: 'center', padding: '24px 0' }}>No disasters yet. Create one above.</p>
+      {showForm && (
+        <CreateDisasterForm
+          onCreated={() => { setShowForm(false); load(); }}
+          onCancel={() => setShowForm(false)}
+        />
       )}
 
-      {disasters.map((d) => (
-        <div key={d._id} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, marginBottom: 12, background: '#fff' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '1rem' }}>{d.title}</h3>
-              <p style={{ margin: '4px 0', fontSize: '0.85rem', color: '#6b7280' }}>
-                {d.type} • {d.location?.city}{d.location?.district ? `, ${d.location.district}` : ''}{d.location?.province ? `, ${d.location.province}` : ''}
-                {d.affectedPopulation ? ` • ${d.affectedPopulation.toLocaleString()} affected` : ''}
-              </p>
-            </div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <Badge color={severityColors[d.severity]}>{d.severity}</Badge>
-              <Badge color={statusColors[d.status]}>{d.status}</Badge>
-            </div>
-          </div>
-          {d.description && <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: '#374151' }}>{d.description}</p>}
-          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-            <button className="text-button" style={{ fontSize: '0.8rem' }} onClick={() => toggleExpand(d._id)}>
-              {expandedId === d._id ? 'Hide Responses' : 'View Responses'}
-            </button>
-            {d.status === 'active' && (
-              <button className="text-button" style={{ fontSize: '0.8rem', color: '#d97706' }}
-                onClick={() => changeStatus(d._id, 'underControl')}>Mark Under Control</button>
-            )}
-            {d.status !== 'closed' && (
-              <button className="text-button" style={{ fontSize: '0.8rem', color: '#dc2626' }}
-                onClick={() => changeStatus(d._id, 'closed')}>Close</button>
-            )}
-          </div>
+      {error && <p className="feedback error">{error}</p>}
+      {loading && <p className="feedback notice">Loading disaster records…</p>}
 
-          {expandedId === d._id && (
-            <div style={{ marginTop: 12, padding: 12, background: '#f9fafb', borderRadius: 6 }}>
-              <h4 style={{ margin: '0 0 8px', fontSize: '0.9rem' }}>NGO Responses ({commitments.length})</h4>
-              {commitments.length === 0 && <p style={{ color: '#6b7280', fontSize: '0.85rem' }}>No NGOs have responded yet.</p>}
-              {commitments.map((c) => (
-                <div key={c._id} style={{ padding: '8px 0', borderBottom: '1px solid #e5e7eb' }}>
-                  <strong>{c.ngoId?.organizationName || 'Unknown NGO'}</strong>
-                  <span style={{ fontSize: '0.8rem', color: '#6b7280', marginLeft: 8 }}>
-                    ({c.ngoId?.userId?.fullName} — {c.ngoId?.userId?.email})
-                  </span>
-                  <div style={{ fontSize: '0.85rem', marginTop: 4 }}>
-                    <div><strong>Work Areas:</strong> {(c.workAreas || []).join(', ')}</div>
-                    <div><strong>Activities:</strong> {(c.plannedActivities || []).join(', ')}</div>
-                    {c.resourcesOffered?.length > 0 && (
-                      <div><strong>Resources:</strong> {c.resourcesOffered.map((r) => `${r.type} (${r.quantity})`).join(', ')}</div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+      {!loading && disasters.length === 0 && (
+        <div style={{ textAlign: 'center', padding: '48px 16px', color: '#64748b', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
+          <p style={{ margin: 0, fontWeight: 500 }}>No disaster incidents found{statusFilter ? ` with status "${statusFilter}"` : ''}.</p>
         </div>
-      ))}
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {disasters.map((d) => (
+          <div
+            key={d._id}
+            style={{
+              border: '1px solid #e2e8f0', borderRadius: 10, padding: 20,
+              background: '#ffffff', transition: 'box-shadow 0.15s ease'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{d.title}</h3>
+                  <Badge color={severityColors[d.severity]}>{d.severity}</Badge>
+                  <Badge color={statusColors[d.status]}>{d.status}</Badge>
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#64748b' }}>
+                  Category: <strong style={{ color: '#334155' }}>{d.type}</strong>
+                  {d.location?.city ? ` • Location: ${[d.location.city, d.location.district, d.location.province].filter(Boolean).join(', ')}` : ''}
+                  {d.affectedPopulation ? ` • Population: ${d.affectedPopulation.toLocaleString()} affected` : ''}
+                  {d.startDate ? ` • Date: ${new Date(d.startDate).toLocaleDateString()}` : ''}
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className="dashboard-signout-btn"
+                  onClick={() => toggleExpand(d._id)}
+                >
+                  {expandedId === d._id ? '▲ Hide Responses' : '▼ View NGO Commitments'}
+                </button>
+                {d.status === 'active' && (
+                  <button
+                    type="button"
+                    className="dashboard-signout-btn"
+                    style={{ borderColor: '#f59e0b', color: '#b45309' }}
+                    onClick={() => changeStatus(d._id, 'underControl')}
+                  >
+                    Mark Under Control
+                  </button>
+                )}
+                {d.status !== 'closed' && (
+                  <button
+                    type="button"
+                    className="dashboard-signout-btn"
+                    style={{ borderColor: '#ef4444', color: '#dc2626' }}
+                    onClick={() => changeStatus(d._id, 'closed')}
+                  >
+                    Close Incident
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {d.description && (
+              <p style={{ margin: '14px 0 0', fontSize: '13px', color: '#334155', lineHeight: 1.6, background: '#f8fafc', padding: 12, borderRadius: 6 }}>
+                {d.description}
+              </p>
+            )}
+
+            {/* Commitments collapsible panel */}
+            {expandedId === d._id && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 700, color: '#0f172a' }}>
+                    Committed NGOs ({commitments.length})
+                  </h4>
+                </div>
+
+                {commitments.length === 0 && (
+                  <p style={{ color: '#64748b', fontSize: '13px', margin: 0, fontStyle: 'italic' }}>
+                    No NGO has committed to this disaster yet.
+                  </p>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12 }}>
+                  {commitments.map((c) => (
+                    <div
+                      key={c._id}
+                      style={{
+                        padding: 14, background: '#f8fafc', borderRadius: 8,
+                        border: '1px solid #e2e8f0'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <strong style={{ fontSize: '14px', color: '#0f172a' }}>
+                            {c.ngoId?.organizationName || 'NGO Partner'}
+                          </strong>
+                          <div style={{ fontSize: '11px', color: '#64748b' }}>
+                            {c.ngoId?.userId?.fullName} ({c.ngoId?.userId?.email})
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                          {c.committedAt ? new Date(c.committedAt).toLocaleDateString() : ''}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: '12px', marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <div>
+                          <span style={{ color: '#64748b', fontWeight: 600 }}>Work Areas: </span>
+                          <span style={{ color: '#0f172a' }}>{(c.workAreas || []).join(', ') || '—'}</span>
+                        </div>
+                        <div>
+                          <span style={{ color: '#64748b', fontWeight: 600 }}>Activities: </span>
+                          <span style={{ color: '#0f172a' }}>{(c.plannedActivities || []).join(', ') || '—'}</span>
+                        </div>
+                        {c.resourcesOffered && c.resourcesOffered.length > 0 && (
+                          <div>
+                            <span style={{ color: '#64748b', fontWeight: 600 }}>Resources: </span>
+                            <span style={{ color: '#0f172a' }}>
+                              {c.resourcesOffered.map((r) => `${r.type} (${r.quantity})`).join(', ')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
-

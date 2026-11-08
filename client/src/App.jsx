@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import DashboardLayout from './components/DashboardLayout';
 import AdminNgosPage from './pages/AdminNgosPage';
 import NgoDashboard from './pages/NgoDashboard';
 import ManagerDashboard from './pages/ManagerDashboard';
@@ -6,6 +7,7 @@ import ResidentDashboard from './pages/ResidentDashboard';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const roles = [
+  { value: 'admin', label: 'Administrator' },
   { value: 'ngo', label: 'NGO partner' },
   { value: 'campManager', label: 'Camp manager' },
   { value: 'affectedPerson', label: 'Community member' },
@@ -132,20 +134,22 @@ export default function App() {
 
     // Fallback for unrecognised roles
     return (
-      <main className="shell">
-        <section className="auth-card welcome-card" aria-labelledby="welcome-title">
-          <Brand />
-          <p className="eyebrow">ACCOUNT ACTIVE</p>
-          <h1 id="welcome-title">You're signed in.</h1>
-          <p className="intro">Welcome, {user.fullName}. Your account is ready.</p>
-          <div className="account-summary">
-            <span>{user.email}</span>
-            <span>{roles.find((r) => r.value === user.role)?.label || user.role}</span>
-            {user.accountStatus === 'pending' && <span>Account approval pending</span>}
+      <DashboardLayout
+        user={user}
+        onLogout={logout}
+        portalTitle="User Portal"
+        title={`Welcome, ${user.fullName}`}
+        subtitle="Your CCCM account is active."
+      >
+        <div className="dashboard-card" style={{ maxWidth: 600 }}>
+          <h3 style={{ margin: '0 0 12px', fontSize: '16px' }}>Account Information</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '13px', color: '#475569' }}>
+            <div><strong>Email:</strong> {user.email}</div>
+            <div><strong>Role:</strong> {roles.find((r) => r.value === user.role)?.label || user.role}</div>
+            <div><strong>Status:</strong> {user.accountStatus}</div>
           </div>
-          <button className="primary-button" onClick={logout}>Sign out</button>
-        </section>
-      </main>
+        </div>
+      </DashboardLayout>
     );
   }
 

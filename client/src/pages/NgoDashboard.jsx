@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import DashboardLayout from '../components/DashboardLayout';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -22,8 +23,8 @@ const severityColors = { low: '#3b82f6', medium: '#d97706', high: '#ea580c', cri
 function Badge({ color, children }) {
   return (
     <span style={{
-      display: 'inline-block', padding: '2px 10px', borderRadius: 999,
-      fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase',
+      display: 'inline-block', padding: '3px 10px', borderRadius: 999,
+      fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase',
       letterSpacing: '0.05em', background: color, color: '#fff',
     }}>
       {children}
@@ -31,13 +32,14 @@ function Badge({ color, children }) {
   );
 }
 
-const inputStyle = {
-  width: '100%', padding: '8px 10px', borderRadius: 6,
-  border: '1px solid #d1d5db', fontSize: '0.9rem', boxSizing: 'border-box',
+const formInputStyle = {
+  width: '100%', padding: '9px 12px', borderRadius: 6,
+  border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box',
+  background: '#ffffff', color: '#0f172a'
 };
 
-/* ───── Response form ────────────────────────────────────────────────────── */
-function RespondForm({ disasterId, onDone, onCancel }) {
+/* ───── Respond Form ─────────────────────────────────────────────────────── */
+function RespondForm({ disaster, onDone, onCancel }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [resources, setResources] = useState([{ type: '', quantity: '' }]);
@@ -72,7 +74,7 @@ function RespondForm({ disasterId, onDone, onCancel }) {
       if (!body.workAreas.length) { setError('Enter at least one work area.'); setBusy(false); return; }
       if (!body.plannedActivities.length) { setError('Enter at least one activity.'); setBusy(false); return; }
 
-      await apiFetch(`/ngo/disasters/${disasterId}/respond`, {
+      await apiFetch(`/ngo/disasters/${disaster._id}/respond`, {
         method: 'POST',
         body: JSON.stringify(body),
       });
@@ -85,66 +87,108 @@ function RespondForm({ disasterId, onDone, onCancel }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ marginTop: 12, padding: 16, background: '#f0fdf4', borderRadius: 8, border: '1px solid #bbf7d0' }}>
-      <h4 style={{ margin: '0 0 12px', fontSize: '1rem', color: '#166534' }}>Submit Your Response</h4>
-
-      <div style={{ marginBottom: 12 }}>
-        <label htmlFor={`wa-${disasterId}`} style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-          Work Areas <span style={{ fontWeight: 400, color: '#6b7280' }}>(comma-separated)</span>
-        </label>
-        <input id={`wa-${disasterId}`} name="workAreas" type="text"
-          placeholder="e.g. Shelter Management, Water Distribution, Medical Aid"
-          required style={inputStyle} />
+    <form onSubmit={handleSubmit} style={{
+      marginTop: 16, padding: 20, background: '#f0fdf4',
+      borderRadius: 8, border: '1px solid #bbf7d0'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+        <h4 style={{ margin: 0, fontSize: '15px', color: '#166534', fontWeight: 700 }}>
+          Commitment Response for: {disaster.title}
+        </h4>
+        <button type="button" onClick={onCancel} className="dashboard-signout-btn" style={{ padding: '4px 10px', fontSize: '11px' }}>
+          ✕ Close
+        </button>
       </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <label htmlFor={`act-${disasterId}`} style={{ fontWeight: 600, fontSize: '0.85rem' }}>
-          Planned Activities <span style={{ fontWeight: 400, color: '#6b7280' }}>(comma-separated)</span>
-        </label>
-        <input id={`act-${disasterId}`} name="plannedActivities" type="text"
-          placeholder="e.g. Distribute relief kits, Set up medical camps, Provide clean water"
-          required style={inputStyle} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14, marginBottom: 14 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#166534', marginBottom: 6 }}>
+            Operational Work Areas * <span style={{ fontWeight: 400, color: '#64748b' }}>(comma-separated)</span>
+          </label>
+          <input
+            name="workAreas"
+            type="text"
+            placeholder="e.g. Shelter, WASH, Health, Food Security"
+            required
+            style={formInputStyle}
+          />
+        </div>
+
+        <div>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#166534', marginBottom: 6 }}>
+            Planned Relief Activities * <span style={{ fontWeight: 400, color: '#64748b' }}>(comma-separated)</span>
+          </label>
+          <input
+            name="plannedActivities"
+            type="text"
+            placeholder="e.g. Distribute water kits, Set up temporary camps, Mobile clinic"
+            required
+            style={formInputStyle}
+          />
+        </div>
       </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ fontWeight: 600, fontSize: '0.85rem', display: 'block', marginBottom: 6 }}>
-          Resources Offered <span style={{ fontWeight: 400, color: '#6b7280' }}>(optional)</span>
+      <div style={{ marginBottom: 14 }}>
+        <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#166534', marginBottom: 6 }}>
+          Allocated Resources & Supplies <span style={{ fontWeight: 400, color: '#64748b' }}>(optional)</span>
         </label>
         {resources.map((r, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
-            <input type="text" placeholder="Resource type (e.g. Tents)"
-              value={r.type} onChange={(e) => updateResource(i, 'type', e.target.value)}
-              style={{ ...inputStyle, flex: 2 }} />
-            <input type="number" placeholder="Qty" min="0"
-              value={r.quantity} onChange={(e) => updateResource(i, 'quantity', e.target.value)}
-              style={{ ...inputStyle, flex: 1 }} />
+          <div key={i} style={{ display: 'flex', gap: 10, marginBottom: 8, alignItems: 'center' }}>
+            <input
+              type="text"
+              placeholder="Item / Resource name (e.g. Family Tents, Hygiene Kits)"
+              value={r.type}
+              onChange={(e) => updateResource(i, 'type', e.target.value)}
+              style={{ ...formInputStyle, flex: 2 }}
+            />
+            <input
+              type="number"
+              placeholder="Quantity"
+              min="0"
+              value={r.quantity}
+              onChange={(e) => updateResource(i, 'quantity', e.target.value)}
+              style={{ ...formInputStyle, flex: 1 }}
+            />
             {resources.length > 1 && (
-              <button type="button" onClick={() => removeResource(i)}
-                style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '1.1rem', padding: '4px' }}>
+              <button
+                type="button"
+                onClick={() => removeResource(i)}
+                style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '16px', padding: '4px 8px' }}
+                title="Remove item"
+              >
                 ✕
               </button>
             )}
           </div>
         ))}
-        <button type="button" onClick={addResource} className="text-button"
-          style={{ fontSize: '0.8rem', marginTop: 2 }}>
-          + Add resource
+        <button
+          type="button"
+          onClick={addResource}
+          style={{ background: 'none', border: 'none', color: '#166534', cursor: 'pointer', fontSize: '12px', fontWeight: 600, padding: 0 }}
+        >
+          + Add another supply line
         </button>
       </div>
 
-      {error && <p style={{ color: '#dc2626', margin: '8px 0', fontSize: '0.85rem' }}>{error}</p>}
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button className="primary-button" type="submit" disabled={busy}
-          style={{ padding: '8px 20px', background: '#16a34a' }}>
-          {busy ? 'Submitting…' : 'Submit Response'}
+      {error && <p className="feedback error">{error}</p>}
+      <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+        <button
+          className="primary-button"
+          type="submit"
+          disabled={busy}
+          style={{ width: 'auto', margin: 0, padding: '8px 22px', minHeight: 'auto', background: '#16a34a', borderColor: '#16a34a' }}
+        >
+          {busy ? 'Submitting…' : 'Confirm & Submit Commitment'}
         </button>
-        <button type="button" className="text-button" onClick={onCancel}>Cancel</button>
+        <button type="button" className="dashboard-signout-btn" onClick={onCancel}>
+          Cancel
+        </button>
       </div>
     </form>
   );
 }
 
-/* ───── Main NGO Dashboard ───────────────────────────────────────────────── */
+/* ───── Main NGO Dashboard Page (Full-Width) ─────────────────────────────── */
 export default function NgoDashboard({ user, onLogout }) {
   const [disasters, setDisasters] = useState([]);
   const [commitments, setCommitments] = useState([]);
@@ -172,123 +216,177 @@ export default function NgoDashboard({ user, onLogout }) {
 
   useEffect(() => { load(); }, [load]);
 
-  return (
-    <main className="shell">
-      <section className="auth-card" style={{ maxWidth: 900, width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <div>
-            <a className="brand" href="/" aria-label="CCCM Manager home">
-              <span className="brand-mark" aria-hidden="true">C</span>
-              <span>CCCM <strong>MANAGER</strong></span>
-            </a>
-            <p className="eyebrow" style={{ marginTop: 8 }}>NGO PORTAL</p>
-            <h1 style={{ margin: 0, fontSize: '1.5rem' }}>Welcome, {user.fullName}</h1>
-          </div>
-          <button className="text-button" onClick={onLogout}>Sign out</button>
-        </div>
-        <p style={{ color: '#6b7280', marginBottom: 16 }}>{user.email}</p>
+  const activeDisasterCount = disasters.length;
+  const committedCount = commitments.length;
 
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e5e7eb', marginBottom: 20 }}>
-          {[{ key: 'disasters', label: 'Active Disasters' }, { key: 'commitments', label: 'My Commitments' }].map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              style={{
-                padding: '10px 20px', fontSize: '0.9rem', fontWeight: 600, cursor: 'pointer',
-                background: 'none', border: 'none',
-                borderBottom: tab === t.key ? '2px solid #2563eb' : '2px solid transparent',
-                color: tab === t.key ? '#2563eb' : '#6b7280',
-                marginBottom: -2,
-              }}>
-              {t.label}
-            </button>
-          ))}
+  return (
+    <DashboardLayout
+      user={user}
+      onLogout={onLogout}
+      portalTitle="NGO Partner Portal"
+      title="NGO Operations & Response"
+      subtitle="View active emergencies declared by authorities, respond with field commitments, and track ongoing operations."
+    >
+      <div className="dashboard-card">
+        {/* Navigation Tabs */}
+        <div className="dashboard-tab-bar">
+          <button
+            onClick={() => setTab('disasters')}
+            className={`dashboard-tab-item ${tab === 'disasters' ? 'active' : ''}`}
+          >
+            Active Emergencies
+            <span className="dashboard-tab-count">{activeDisasterCount}</span>
+          </button>
+          <button
+            onClick={() => setTab('commitments')}
+            className={`dashboard-tab-item ${tab === 'commitments' ? 'active' : ''}`}
+          >
+            My Response Commitments
+            <span className="dashboard-tab-count">{committedCount}</span>
+          </button>
         </div>
 
         {error && <p className="feedback error">{error}</p>}
-        {loading && <p className="feedback notice">Loading…</p>}
+        {loading && <p className="feedback notice">Loading operational data…</p>}
 
-        {/* ── Active Disasters Tab ──────────────────────────────────────── */}
+        {/* ── Active Disasters Tab ── */}
         {tab === 'disasters' && !loading && (
-          <>
+          <div>
             {disasters.length === 0 && (
-              <p style={{ color: '#6b7280', textAlign: 'center', padding: '32px 0' }}>
-                No active disasters at this time.
-              </p>
-            )}
-            {disasters.map((d) => (
-              <div key={d._id} style={{
-                border: '1px solid #e5e7eb', borderRadius: 8, padding: 16,
-                marginBottom: 12, background: '#fff',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '1rem' }}>{d.title}</h3>
-                    <p style={{ margin: '4px 0', fontSize: '0.85rem', color: '#6b7280' }}>
-                      {d.type} • {d.location?.city}{d.location?.district ? `, ${d.location.district}` : ''}{d.location?.province ? `, ${d.location.province}` : ''}
-                      {d.affectedPopulation ? ` • ${d.affectedPopulation.toLocaleString()} affected` : ''}
-                      {d.startDate ? ` • Started ${new Date(d.startDate).toLocaleDateString()}` : ''}
-                    </p>
-                  </div>
-                  <Badge color={severityColors[d.severity]}>{d.severity}</Badge>
-                </div>
-                {d.description && <p style={{ margin: '8px 0 0', fontSize: '0.85rem', color: '#374151' }}>{d.description}</p>}
-
-                {d.myCommitmentStatus ? (
-                  <p style={{
-                    marginTop: 10, padding: '6px 14px', borderRadius: 6,
-                    background: '#f0fdf4', color: '#166534', fontSize: '0.85rem', fontWeight: 600,
-                  }}>
-                    ✓ You have responded — status: {d.myCommitmentStatus}
-                  </p>
-                ) : respondingTo === d._id ? (
-                  <RespondForm disasterId={d._id}
-                    onDone={() => { setRespondingTo(null); load(); }}
-                    onCancel={() => setRespondingTo(null)} />
-                ) : (
-                  <button className="primary-button"
-                    style={{ marginTop: 10, padding: '8px 20px', background: '#16a34a' }}
-                    onClick={() => setRespondingTo(d._id)}>
-                    I Will Respond
-                  </button>
-                )}
+              <div style={{ textAlign: 'center', padding: '48px 16px', color: '#64748b', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
+                <p style={{ margin: 0, fontWeight: 500 }}>No active emergencies requiring response at this time.</p>
               </div>
-            ))}
-          </>
-        )}
-
-        {/* ── My Commitments Tab ────────────────────────────────────────── */}
-        {tab === 'commitments' && !loading && (
-          <>
-            {commitments.length === 0 && (
-              <p style={{ color: '#6b7280', textAlign: 'center', padding: '32px 0' }}>
-                You haven't responded to any disasters yet.
-              </p>
             )}
-            {commitments.map((c) => (
-              <div key={c._id} style={{
-                border: '1px solid #e5e7eb', borderRadius: 8, padding: 16,
-                marginBottom: 12, background: '#fff',
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <h3 style={{ margin: 0, fontSize: '1rem' }}>{c.disasterId?.title || 'Unknown Disaster'}</h3>
-                  <Badge color={severityColors[c.disasterId?.severity]}>{c.disasterId?.severity}</Badge>
-                </div>
-                <p style={{ margin: '4px 0', fontSize: '0.85rem', color: '#6b7280' }}>
-                  {c.disasterId?.type} • Status: {c.disasterId?.status}
-                  {c.committedAt ? ` • Committed ${new Date(c.committedAt).toLocaleDateString()}` : ''}
-                </p>
-                <div style={{ marginTop: 8, fontSize: '0.85rem' }}>
-                  <div><strong>Work Areas:</strong> {(c.workAreas || []).join(', ')}</div>
-                  <div><strong>Activities:</strong> {(c.plannedActivities || []).join(', ')}</div>
-                  {c.resourcesOffered?.length > 0 && (
-                    <div><strong>Resources:</strong> {c.resourcesOffered.map((r) => `${r.type} (${r.quantity})`).join(', ')}</div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {disasters.map((d) => (
+                <div
+                  key={d._id}
+                  style={{
+                    border: '1px solid #e2e8f0', borderRadius: 10, padding: 20,
+                    background: '#ffffff', transition: 'box-shadow 0.15s ease'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>{d.title}</h3>
+                        <Badge color={severityColors[d.severity]}>{d.severity}</Badge>
+                      </div>
+                      <p style={{ margin: '6px 0 0', fontSize: '13px', color: '#64748b' }}>
+                        Category: <strong style={{ color: '#334155' }}>{d.type}</strong>
+                        {d.location?.city ? ` • Location: ${[d.location.city, d.location.district, d.location.province].filter(Boolean).join(', ')}` : ''}
+                        {d.affectedPopulation ? ` • ${d.affectedPopulation.toLocaleString()} affected` : ''}
+                        {d.startDate ? ` • Date: ${new Date(d.startDate).toLocaleDateString()}` : ''}
+                      </p>
+                    </div>
+
+                    <div>
+                      {d.myCommitmentStatus ? (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 6,
+                          padding: '6px 14px', borderRadius: 20, background: '#f0fdf4',
+                          color: '#166534', fontSize: '12px', fontWeight: 700, border: '1px solid #bbf7d0'
+                        }}>
+                          ✓ Committed ({d.myCommitmentStatus})
+                        </span>
+                      ) : (
+                        <button
+                          className="primary-button"
+                          style={{
+                            margin: 0, width: 'auto', padding: '8px 20px', minHeight: 'auto',
+                            background: '#16a34a', borderColor: '#16a34a', fontSize: '13px'
+                          }}
+                          onClick={() => setRespondingTo(respondingTo === d._id ? null : d._id)}
+                        >
+                          {respondingTo === d._id ? 'Cancel' : 'I Will Respond'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {d.description && (
+                    <p style={{ margin: '12px 0 0', fontSize: '13px', color: '#334155', lineHeight: 1.6, background: '#f8fafc', padding: 12, borderRadius: 6 }}>
+                      {d.description}
+                    </p>
+                  )}
+
+                  {respondingTo === d._id && (
+                    <RespondForm
+                      disaster={d}
+                      onDone={() => { setRespondingTo(null); load(); }}
+                      onCancel={() => setRespondingTo(null)}
+                    />
                   )}
                 </div>
-              </div>
-            ))}
-          </>
+              ))}
+            </div>
+          </div>
         )}
-      </section>
-    </main>
+
+        {/* ── My Commitments Tab ── */}
+        {tab === 'commitments' && !loading && (
+          <div>
+            {commitments.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '48px 16px', color: '#64748b', background: '#f8fafc', borderRadius: 8, border: '1px dashed #cbd5e1' }}>
+                <p style={{ margin: 0, fontWeight: 500 }}>Your organization has not committed to any emergencies yet.</p>
+                <p style={{ margin: '6px 0 0', fontSize: '12px' }}>Browse the "Active Emergencies" tab to respond to declared incidents.</p>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 16 }}>
+              {commitments.map((c) => (
+                <div
+                  key={c._id}
+                  style={{
+                    border: '1px solid #e2e8f0', borderRadius: 10, padding: 18,
+                    background: '#ffffff', display: 'flex', flexDirection: 'column', gap: 10
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <h4 style={{ margin: 0, fontSize: '15px', fontWeight: 700, color: '#0f172a' }}>
+                        {c.disasterId?.title || 'Emergency Incident'}
+                      </h4>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
+                        Type: {c.disasterId?.type} • Committed {c.committedAt ? new Date(c.committedAt).toLocaleDateString() : ''}
+                      </p>
+                    </div>
+                    {c.disasterId?.severity && (
+                      <Badge color={severityColors[c.disasterId.severity]}>{c.disasterId.severity}</Badge>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: '12px', background: '#f8fafc', padding: 12, borderRadius: 6, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div>
+                      <span style={{ color: '#64748b', fontWeight: 600 }}>Work Areas: </span>
+                      <span style={{ color: '#0f172a' }}>{(c.workAreas || []).join(', ') || '—'}</span>
+                    </div>
+                    <div>
+                      <span style={{ color: '#64748b', fontWeight: 600 }}>Planned Activities: </span>
+                      <span style={{ color: '#0f172a' }}>{(c.plannedActivities || []).join(', ') || '—'}</span>
+                    </div>
+                    {c.resourcesOffered && c.resourcesOffered.length > 0 && (
+                      <div>
+                        <span style={{ color: '#64748b', fontWeight: 600 }}>Resources Pledged: </span>
+                        <span style={{ color: '#0f172a' }}>
+                          {c.resourcesOffered.map((r) => `${r.type} (${r.quantity})`).join(', ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 6 }}>
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>
+                      Status: <strong style={{ color: '#166534', textTransform: 'capitalize' }}>{c.status || 'Committed'}</strong>
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </DashboardLayout>
   );
 }
