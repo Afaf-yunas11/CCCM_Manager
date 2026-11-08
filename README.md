@@ -25,3 +25,17 @@ node src/scripts/testModels.js
 ```
 
 The script creates a uniquely named test database and leaves it in MongoDB for inspection. It does not drop the database. The last recorded run connected successfully and passed 9 checks; 3 request-related checks still need fixes (`next is not a function` in request checks and a failed populate lookup).
+
+## Account creation and email verification
+
+The sign-up flow creates an account in a pending, unverified state and sends a six-digit verification code by email. The code expires after 10 minutes. After verification, users can sign in; NGO accounts also require administrator approval before access.
+
+### Sign-in
+
+![CCCM Manager sign-in page](docs/images/auth-sign-in.png)
+
+### Email verification message
+
+The screenshot uses placeholder contact details and a masked verification code.
+
+![CCCM Manager email verification message](docs/images/email-verification.png)
