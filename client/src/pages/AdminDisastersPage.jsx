@@ -45,9 +45,11 @@ function CreateDisasterForm({ onCreated, onCancel }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (busy) return;
+    const form = e.currentTarget;
     setBusy(true);
     setError('');
-    const fd = new FormData(e.currentTarget);
+    const fd = new FormData(form);
     try {
       const body = {
         title: fd.get('title'),
@@ -63,7 +65,7 @@ function CreateDisasterForm({ onCreated, onCancel }) {
         },
       };
       await apiFetch('/admin/disasters', { method: 'POST', body: JSON.stringify(body) });
-      e.currentTarget.reset();
+      form?.reset?.();
       onCreated();
     } catch (err) {
       setError(err.message);
@@ -228,6 +230,16 @@ export default function AdminDisastersPage() {
     }
   }
 
+  async function handleDelete(id, title) {
+    if (!window.confirm(`Are you sure you want to delete "${title}"?`)) return;
+    try {
+      await apiFetch(`/admin/disasters/${id}`, { method: 'DELETE' });
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   return (
     <div>
       {/* Top action row */}
@@ -327,6 +339,15 @@ export default function AdminDisastersPage() {
                     Close Incident
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="dashboard-signout-btn"
+                  style={{ borderColor: '#cbd5e1', color: '#64748b' }}
+                  onClick={() => handleDelete(d._id, d.title)}
+                  title="Delete incident"
+                >
+                  Delete
+                </button>
               </div>
             </div>
 

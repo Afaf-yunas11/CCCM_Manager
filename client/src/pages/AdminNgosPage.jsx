@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import AdminDisastersPage from './AdminDisastersPage';
+import AdminCampsPage from './AdminCampsPage';
+import AdminRequestsPage from './AdminRequestsPage';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -182,7 +184,9 @@ export default function AdminNgosPage({ user, onLogout }) {
 
   const tabs = [
     { key: 'disasters', label: 'Disaster Management' },
+    { key: 'camps', label: 'Camp Management' },
     { key: 'ngos', label: 'NGO Approvals & Profiles' },
+    { key: 'requests', label: 'Complaints & Requests' },
   ];
 
   return (
@@ -208,7 +212,9 @@ export default function AdminNgosPage({ user, onLogout }) {
         </div>
 
         {tab === 'disasters' && <AdminDisastersPage />}
+        {tab === 'camps' && <AdminCampsPage />}
         {tab === 'ngos' && <NgoApprovalsTab />}
+        {tab === 'requests' && <AdminRequestsPage />}
       </div>
     </DashboardLayout>
   );

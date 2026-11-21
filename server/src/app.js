@@ -3,6 +3,8 @@ const cors = require('cors');
 const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const ngoRoutes = require('./routes/ngo');
+const requestRoutes = require('./routes/request');
+const campRoutes = require('./routes/camp');
 
 const app = express();
 const configuredOrigin = process.env.CLIENT_ORIGIN;
@@ -31,6 +33,8 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/ngo', ngoRoutes);
+app.use('/api/requests', requestRoutes);
+app.use('/api/camps', campRoutes);
 app.use((error, req, res, next) => {
   console.error(error);
   if (error.accountCreated) {

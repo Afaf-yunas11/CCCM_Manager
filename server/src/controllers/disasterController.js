@@ -190,11 +190,26 @@ async function getMyCommitments(req, res) {
   }
 }
 
+// ── Admin: Delete a disaster ───────────────────────────────────────────────
+async function deleteDisaster(req, res) {
+  try {
+    const { id } = req.params;
+    const disaster = await Disaster.findByIdAndDelete(id);
+    if (!disaster) return res.status(404).json({ message: 'Disaster not found.' });
+
+    await DisasterCommitment.deleteMany({ disasterId: id });
+    return res.json({ message: 'Disaster deleted successfully.' });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || 'Failed to delete disaster.' });
+  }
+}
+
 module.exports = {
   createDisaster,
   getDisasters,
   getDisasterById,
   updateDisasterStatus,
+  deleteDisaster,
   getActiveDisasters,
   respondToDisaster,
   getMyCommitments,
