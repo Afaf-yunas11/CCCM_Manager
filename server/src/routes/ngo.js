@@ -9,6 +9,9 @@ const {
   getMyProfile,
   updateMyProfile,
   withdrawCommitment,
+  listCampsForSupport,
+  offerCampSupport,
+  listMyCampComplaints,
 } = require('../controllers/ngoController');
 
 const router = express.Router();
@@ -30,5 +33,10 @@ router.patch('/disasters/:id/withdraw', withdrawCommitment);
 
 // View own commitments
 router.get('/commitments', getMyCommitments);
+
+// Offer facilities to active camps
+router.get('/camps', listCampsForSupport);
+router.post('/camps/:id/offers', offerCampSupport);
+router.get('/complaints', listMyCampComplaints);
 
 module.exports = router;

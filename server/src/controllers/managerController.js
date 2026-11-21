@@ -1,6 +1,6 @@
 // server/src/controllers/managerController.js
 const mongoose = require('mongoose');
-const { Disaster, SiteAssessment, Camp } = require('../models');
+const { Disaster, SiteAssessment, Camp, Request, ShortageOffer, Notification, NgoComplaint } = require('../models');
 const { calculateRequirements, assessSite } = require('../config/guidelines');
 const { fetchSiteData } = require('../services/siteApis');
 const { generateReport, formatReport } = require('../services/llmReport');
@@ -130,7 +130,31 @@ async function createCamp(req, res) {
 
 // GET /api/manager/camps (mine)
 async function listCamps(req, res) {
-  res.json(await Camp.find({ managerId: req.user._id }).sort({ createdAt: -1 }));
+  const camps = await Camp.find({ managerId: req.user._id }).sort({ createdAt: -1 });
+  if (!camps.length) return res.json([]);
+
+  const offers = await ShortageOffer.find({ campId: { $in: camps.map((camp) => camp._id) } })
+    .populate('ngoId', 'organizationName')
+    .sort({ createdAt: -1 });
+  const offersByCamp = new Map();
+  for (const offer of offers) {
+    const campId = String(offer.campId);
+    if (!offersByCamp.has(campId)) offersByCamp.set(campId, []);
+    offersByCamp.get(campId).push({
+      _id: offer._id,
+      ngoId: offer.ngoId?._id ? String(offer.ngoId._id) : '',
+      ngoName: offer.ngoId?.organizationName || 'NGO',
+      resource: offer.resource,
+      message: offer.message,
+      status: offer.status,
+      createdAt: offer.createdAt,
+    });
+  }
+
+  res.json(camps.map((camp) => ({
+    ...camp.toObject(),
+    supportOffers: offersByCamp.get(String(camp._id)) || [],
+  })));
 }
 
 // PATCH /api/manager/camps/:id { population?, resources?: { water:'low', ... } }
@@ -153,4 +177,149 @@ async function updateCamp(req, res) {
   res.json(camp);
 }
 
-module.exports = { listActiveDisasters, calculator, siteData, createAssessment, listAssessments, createCamp, listCamps, updateCamp };
+async function updateCampSupportOffer(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.offerId))
+    return res.status(400).json({ message: 'Invalid camp or NGO offer.' });
+
+  const camp = await Camp.findOne({ _id: req.params.id, managerId: req.user._id });
+  if (!camp) return res.status(404).json({ message: 'Camp not found.' });
+  const { status } = req.body;
+  if (!['accepted', 'declined'].includes(status))
+    return res.status(400).json({ message: 'Offer status must be accepted or declined.' });
+
+  const offer = await ShortageOffer.findOne({ _id: req.params.offerId, campId: camp._id });
+  if (!offer) return res.status(404).json({ message: 'NGO offer not found for this camp.' });
+  offer.status = status;
+  await offer.save();
+  await offer.populate('ngoId', 'organizationName');
+  res.json({
+    _id: offer._id,
+    ngoName: offer.ngoId?.organizationName || 'NGO',
+    resource: offer.resource,
+    message: offer.message,
+    status: offer.status,
+    createdAt: offer.createdAt,
+  });
+}
+
+async function listCampRequests(req, res) {
+  const camps = await Camp.find({ managerId: req.user._id }).select('_id');
+  if (!camps.length) return res.json([]);
+  const requests = await Request.find({ campId: { $in: camps.map((camp) => camp._id) } })
+    .populate('campId', 'name')
+    .sort({ createdAt: -1 })
+    .limit(500);
+  if (!requests.length) return res.json([]);
+
+  const notifications = await Notification.find({ requestId: { $in: requests.map((request) => request._id) } })
+    .populate('ngoId', 'organizationName');
+  const notificationsByRequest = new Map();
+  for (const notification of notifications) {
+    const requestId = String(notification.requestId);
+    if (!notificationsByRequest.has(requestId)) notificationsByRequest.set(requestId, []);
+    notificationsByRequest.get(requestId).push({
+      ngoName: notification.ngoId?.organizationName || 'NGO',
+      status: notification.status,
+    });
+  }
+
+  res.json(requests.map((request) => ({
+    ...request.toObject(),
+    emailNotifications: notificationsByRequest.get(String(request._id)) || [],
+  })));
+}
+
+async function updateRequestStatus(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid request.' });
+  const { status } = req.body;
+  if (!['pending', 'in_progress', 'resolved'].includes(status))
+    return res.status(400).json({ message: 'Status must be pending, in progress, or resolved.' });
+
+  const request = await Request.findById(req.params.id);
+  if (!request) return res.status(404).json({ message: 'Request not found.' });
+  const camp = await Camp.findOne({ _id: request.campId, managerId: req.user._id }).select('_id');
+  if (!camp) return res.status(404).json({ message: 'Request not found for one of your camps.' });
+
+  request.status = status;
+  await request.save();
+  await request.populate('campId', 'name');
+  res.json(request);
+}
+
+async function listNgoComplaints(req, res) {
+  const complaints = await NgoComplaint.find({ managerId: req.user._id })
+    .populate('campId', 'name')
+    .populate('ngoId', 'organizationName')
+    .sort({ createdAt: -1 })
+    .limit(500);
+  res.json(complaints);
+}
+
+async function createNgoComplaint(req, res) {
+  const { campId, ngoId, category } = req.body;
+  if (!mongoose.isValidObjectId(campId) || !mongoose.isValidObjectId(ngoId))
+    return res.status(400).json({ message: 'Choose a valid camp and NGO.' });
+  if (!['food', 'water', 'medicine', 'shelter', 'sanitation', 'other'].includes(category))
+    return res.status(400).json({ message: 'Choose a valid complaint category.' });
+
+  const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
+  const details = typeof req.body.details === 'string' ? req.body.details.trim() : '';
+  if (!subject || subject.length > 150)
+    return res.status(400).json({ message: 'Enter a complaint subject of 1–150 characters.' });
+  if (!details || details.length > 2000)
+    return res.status(400).json({ message: 'Enter complaint details of 1–2,000 characters.' });
+
+  const camp = await Camp.findOne({ _id: campId, managerId: req.user._id, status: { $ne: 'closed' } }).select('_id');
+  if (!camp) return res.status(404).json({ message: 'Active camp not found.' });
+  const acceptedOffer = await ShortageOffer.exists({ campId: camp._id, ngoId, status: 'accepted' });
+  if (!acceptedOffer)
+    return res.status(409).json({ message: 'Choose an NGO with an accepted support offer for this camp.' });
+
+  const complaint = await NgoComplaint.create({
+    managerId: req.user._id,
+    campId: camp._id,
+    ngoId,
+    category,
+    subject,
+    details,
+  });
+  await complaint.populate([
+    { path: 'campId', select: 'name' },
+    { path: 'ngoId', select: 'organizationName' },
+  ]);
+  res.status(201).json(complaint);
+}
+
+async function updateNgoComplaintStatus(req, res) {
+  if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid NGO complaint.' });
+  const { status } = req.body;
+  if (!['pending', 'in_progress', 'resolved'].includes(status))
+    return res.status(400).json({ message: 'Status must be pending, in progress, or resolved.' });
+
+  const complaint = await NgoComplaint.findOne({ _id: req.params.id, managerId: req.user._id });
+  if (!complaint) return res.status(404).json({ message: 'NGO complaint not found.' });
+  complaint.status = status;
+  await complaint.save();
+  await complaint.populate([
+    { path: 'campId', select: 'name' },
+    { path: 'ngoId', select: 'organizationName' },
+  ]);
+  res.json(complaint);
+}
+
+module.exports = {
+  listActiveDisasters,
+  calculator,
+  siteData,
+  createAssessment,
+  listAssessments,
+  createCamp,
+  listCamps,
+  updateCamp,
+  updateCampSupportOffer,
+  listCampRequests,
+  updateRequestStatus,
+  listNgoComplaints,
+  createNgoComplaint,
+  updateNgoComplaintStatus,
+};

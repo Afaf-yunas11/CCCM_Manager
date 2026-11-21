@@ -27,6 +27,17 @@ const palette = {
   sufficient: ['#dcfce7', '#166534', 'Sufficient'],
   low: ['#fef3c7', '#92400e', 'Low'],
   critical: ['#fee2e2', '#991b1b', 'Critically low'],
+  pending: ['#fef3c7', '#92400e', 'Pending'],
+  in_progress: ['#dbeafe', '#1d4ed8', 'In progress'],
+  resolved: ['#dcfce7', '#166534', 'Resolved'],
+  offered: ['#fef3c7', '#92400e', 'Pending review'],
+  accepted: ['#dcfce7', '#166534', 'Accepted'],
+  declined: ['#e2e8f0', '#334155', 'Declined'],
+  active: ['#dcfce7', '#166534', 'Open'],
+  closureDue: ['#fef3c7', '#92400e', 'Closure due'],
+  extended: ['#dbeafe', '#1d4ed8', 'Extended'],
+  closed: ['#e2e8f0', '#334155', 'Closed'],
+  restricted: ['#fee2e2', '#991b1b', 'Restricted'],
 };
 export function StatusBadge({ value }) {
   const [bg, fg, text] = palette[value] || ['#e2e8f0', '#334155', value];

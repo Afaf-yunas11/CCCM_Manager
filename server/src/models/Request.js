@@ -24,9 +24,8 @@ const requestSchema = new mongoose.Schema(
 );
 
 // protection complaints are always restricted
-requestSchema.pre('validate', function (next) {
+requestSchema.pre('validate', function () {
   if (this.category === 'protection') this.isRestricted = true;
-  next();
 });
 
 requestSchema.index({ campId: 1, status: 1 });

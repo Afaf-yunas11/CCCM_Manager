@@ -1,15 +1,6 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import { apiFetch } from './apiFetch';
 
-async function call(path, options = {}) {
-  const token = localStorage.getItem('cccm-token');
-  const res = await fetch(`${API_URL}/manager${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || 'Request failed');
-  return data;
-}
+const call = (path, options = {}) => apiFetch(`/manager${path}`, options);
 const post = (path, body) => call(path, { method: 'POST', body: JSON.stringify(body) });
 
 export const managerApi = {
@@ -21,4 +12,10 @@ export const managerApi = {
   createCamp: (body) => post('/camps', body),
   camps: () => call('/camps'),
   updateCamp: (id, body) => call(`/camps/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  updateCampOffer: (campId, offerId, status) => call(`/camps/${campId}/offers/${offerId}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  requests: () => call('/requests'),
+  updateRequest: (id, status) => call(`/requests/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
+  ngoComplaints: () => call('/ngo-complaints'),
+  createNgoComplaint: (body) => post('/ngo-complaints', body),
+  updateNgoComplaint: (id, status) => call(`/ngo-complaints/${id}`, { method: 'PATCH', body: JSON.stringify({ status }) }),
 };
