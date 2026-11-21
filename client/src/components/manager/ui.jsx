@@ -66,6 +66,8 @@ export function ApiDataCards({ data }) {
   if (!data) return null;
   const items = [
     ['Nearest river / canal', data.riverDistanceM != null ? `${data.riverDistanceM} m` : 'none found'],
+    ['Nearest water point (1 km search)', data.nearestWaterPointM != null ? `${data.nearestWaterPointM} m` : 'none found'],
+    ['Nearest main road (500 m search)', data.mainRoadDistanceM != null ? `${data.mainRoadDistanceM} m` : 'none found'],
     ['Nearest hospital', data.nearestHospitalKm != null ? `${data.nearestHospitalKm} km` : 'none found'],
     ['Elevation', data.elevationM != null ? `${data.elevationM} m` : 'n/a'],
     ['Slope estimate', data.slopePercentEstimate != null ? `${data.slopePercentEstimate} %` : 'n/a'],
@@ -87,7 +89,13 @@ export function ApiDataCards({ data }) {
   );
 }
 
-export function AssessmentResult({ a, children }) {
+export function AssessmentResult({
+  a,
+  children,
+  showRequirements = true,
+  showSiteData = true,
+  showReport = true,
+}) {
   return (
     <div className="dashboard-card" style={{ marginTop: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
@@ -98,11 +106,19 @@ export function AssessmentResult({ a, children }) {
       {a.fails?.map((f) => <p key={f} style={{ margin: '4px 0', fontSize: 13, color: '#991b1b' }}>✗ {f}</p>)}
       {a.warns?.map((w) => <p key={w} style={{ margin: '4px 0', fontSize: 13, color: '#92400e' }}>! {w}</p>)}
       {!a.fails?.length && !a.warns?.length && <p style={{ fontSize: 13, color: '#166534' }}>All checks passed.</p>}
-      <h4 style={{ margin: '16px 0 8px', fontSize: 14 }}>Resources needed</h4>
-      <RequirementsGrid r={a.requirements} />
-      <h4 style={{ margin: '16px 0 8px', fontSize: 14 }}>Site data</h4>
-      <ApiDataCards data={a.apiData} />
-      {a.llmReport && (
+      {showRequirements && (
+        <>
+          <h4 style={{ margin: '16px 0 8px', fontSize: 14 }}>Resources needed</h4>
+          <RequirementsGrid r={a.requirements} />
+        </>
+      )}
+      {showSiteData && (
+        <>
+          <h4 style={{ margin: '16px 0 8px', fontSize: 14 }}>Site data</h4>
+          <ApiDataCards data={a.apiData} />
+        </>
+      )}
+      {showReport && a.llmReport && (
         <>
           <h4 style={{ margin: '16px 0 8px', fontSize: 14 }}>Report</h4>
           <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: 12 }}>{a.llmReport}</div>

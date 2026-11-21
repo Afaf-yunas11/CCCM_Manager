@@ -84,14 +84,68 @@ async function getFloodDischarge(lat, lng) {
   return Math.round(Math.max(...vals) * 10) / 10;
 }
 
-// Calls every API in parallel; a failing API never breaks the assessment.
+const WATER_SEARCH_RADIUS_M = 1000;
+const ROAD_SEARCH_RADIUS_M = 500;
+const MAIN_ROADS = ['motorway', 'trunk', 'primary', 'secondary', 'tertiary'];
+
+// Wells, springs, water towers and drinking-water points within 1 km (OpenStreetMap).
+async function getWaterPoints(lat, lng) {
+  const a = `(around:${WATER_SEARCH_RADIUS_M},${lat},${lng})`;
+  const q = `[out:json][timeout:12];(nwr["amenity"="drinking_water"]${a};nwr["man_made"~"^(water_well|water_tower|water_works|water_tap|borehole)$"]${a};nwr["natural"="spring"]${a};);out center;`;
+  const data = await overpass(q);
+  let min = null;
+  let count = 0;
+  for (const el of data.elements || []) {
+    const pLat = el.lat ?? el.center?.lat;
+    const pLng = el.lon ?? el.center?.lon;
+    if (pLat == null || pLng == null) continue;
+    count++;
+    const d = haversineM(lat, lng, pLat, pLng);
+    if (min === null || d < min) min = d;
+  }
+  return { count, nearestM: min === null ? null : Math.round(min) };
+}
+
+// Nearest road of any kind, and nearest MAIN road, within 500 m (OpenStreetMap).
+async function getRoads(lat, lng) {
+  const q = `[out:json][timeout:12];way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential)$"](around:${ROAD_SEARCH_RADIUS_M},${lat},${lng});out geom;`;
+  const data = await overpass(q);
+  let any = null;
+  let main = null;
+  for (const el of data.elements || []) {
+    const isMain = MAIN_ROADS.includes(el.tags?.highway);
+    for (const pt of el.geometry || []) {
+      const d = haversineM(lat, lng, pt.lat, pt.lon);
+      if (any === null || d < any) any = d;
+      if (isMain && (main === null || d < main)) main = d;
+    }
+  }
+  return { anyM: any === null ? null : Math.round(any), mainM: main === null ? null : Math.round(main) };
+}
+
+// Overpass allows few parallel requests per IP, so its queries run one after another.
+async function runSequential(tasks) {
+  const out = [];
+  for (const t of tasks) {
+    try { out.push({ status: 'fulfilled', value: await t() }); }
+    catch (e) { out.push({ status: 'rejected', reason: e }); }
+  }
+  return out;
+}
+
+// A failing API never breaks the assessment: it only adds a note.
 async function fetchSiteData(lat, lng) {
-  const [river, hospital, elev, flood] = await Promise.allSettled([
-    getRiverDistanceM(lat, lng),
-    getNearestHospitalKm(lat, lng),
+  const [osmRes, elevRes, floodRes] = await Promise.allSettled([
+    runSequential([
+      () => getRiverDistanceM(lat, lng),
+      () => getNearestHospitalKm(lat, lng),
+      () => getWaterPoints(lat, lng),
+      () => getRoads(lat, lng),
+    ]),
     getElevation(lat, lng),
     getFloodDischarge(lat, lng),
   ]);
+  const [river, hospital, water, roads] = osmRes.value;
   const notes = [];
   const apiData = { fetchedAt: new Date(), notes };
   const take = (r, label, onOk) => {
@@ -106,8 +160,18 @@ async function fetchSiteData(lat, lng) {
     if (v === null) notes.push(`No hospital found within ${HOSPITAL_SEARCH_RADIUS_M / 1000} km in OpenStreetMap`);
     else apiData.nearestHospitalKm = v;
   });
-  take(elev, 'Elevation', (v) => Object.assign(apiData, v));
-  take(flood, 'Flood forecast', (v) => {
+  take(water, 'Water point search', (v) => {
+    apiData.waterPointsCount = v.count;
+    if (v.nearestM === null) notes.push(`No well, spring or water point found within ${WATER_SEARCH_RADIUS_M} m in OpenStreetMap (may be missing from the map)`);
+    else apiData.nearestWaterPointM = v.nearestM;
+  });
+  take(roads, 'Road search', (v) => {
+    if (v.anyM !== null) apiData.roadDistanceM = v.anyM;
+    if (v.mainM !== null) apiData.mainRoadDistanceM = v.mainM;
+    else notes.push(`No main road found within ${ROAD_SEARCH_RADIUS_M} m in OpenStreetMap (may be missing from the map)`);
+  });
+  take(elevRes, 'Elevation', (v) => Object.assign(apiData, v));
+  take(floodRes, 'Flood forecast', (v) => {
     if (v === null) notes.push('No river discharge forecast for this point');
     else apiData.floodDischarge = v;
   });
