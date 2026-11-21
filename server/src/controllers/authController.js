@@ -18,7 +18,7 @@ function createToken(user) {
   return jwt.sign(
     { id: user.id, sub: user.id, role: user.role },
     process.env.JWT_SECRET,
-    { expiresIn: '1h' }
+    { expiresIn: '30d' }
   );
 }
 
@@ -205,5 +205,7 @@ const login = asyncHandler(async (req, res) => {
   return res.json({ token: createToken(user), user: publicUser(user) });
 });
 
-module.exports = { signup, verifyEmail, resendVerification, login };
+const getCurrentUser = (req, res) => res.json(publicUser(req.user));
+
+module.exports = { signup, verifyEmail, resendVerification, login, getCurrentUser };
 

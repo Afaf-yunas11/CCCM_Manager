@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import DashboardLayout from './components/DashboardLayout';
 import AdminNgosPage from './pages/AdminNgosPage';
 import NgoDashboard from './pages/NgoDashboard';
 import ManagerDashboard from './pages/ManagerDashboard';
 import ResidentDashboard from './pages/ResidentDashboard';
+import { apiFetch } from './services/apiFetch';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 const roles = [
@@ -34,13 +35,58 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState('');
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem('cccm-user') || 'null');
-    } catch {
-      return null;
+  const [user, setUser] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const clearStoredSession = () => {
+      localStorage.removeItem('cccm-token');
+      localStorage.removeItem('cccm-user');
+    };
+    const onSessionExpired = () => {
+      clearStoredSession();
+      setUser(null);
+      setPage('login');
+      setNotice('Your session expired. Please sign in again.');
+      setAuthReady(true);
+    };
+
+    window.addEventListener('cccm-session-expired', onSessionExpired);
+    if (!localStorage.getItem('cccm-token')) {
+      clearStoredSession();
+      setAuthReady(true);
+    } else {
+      apiFetch('/auth/me')
+        .then((currentUser) => {
+          if (!active) return;
+          localStorage.setItem('cccm-user', JSON.stringify(currentUser));
+          setUser(currentUser);
+        })
+        .catch((error) => {
+          if (!active) return;
+          if (error.status === 401 || error.status === 403) {
+            clearStoredSession();
+            setUser(null);
+            return;
+          }
+          try {
+            setUser(JSON.parse(localStorage.getItem('cccm-user') || 'null'));
+          } catch {
+            clearStoredSession();
+            setUser(null);
+          }
+        })
+        .finally(() => {
+          if (active) setAuthReady(true);
+        });
     }
-  });
+
+    return () => {
+      active = false;
+      window.removeEventListener('cccm-session-expired', onSessionExpired);
+    };
+  }, []);
 
   function showPage(nextPage) {
     setPage(nextPage);
@@ -89,6 +135,7 @@ export default function App() {
       localStorage.setItem('cccm-token', result.token);
       localStorage.setItem('cccm-user', JSON.stringify(result.user));
       setUser(result.user);
+      setAuthReady(true);
     });
   }
 
@@ -122,7 +169,12 @@ export default function App() {
     localStorage.removeItem('cccm-token');
     localStorage.removeItem('cccm-user');
     setUser(null);
+    setAuthReady(true);
     showPage('login');
+  }
+
+  if (!authReady) {
+    return <main className="shell"><section className="auth-card">Restoring your sign-in…</section></main>;
   }
 
   // ── Role-based routing ────────────────────────────────────────────────────

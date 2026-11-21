@@ -1,23 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
 import AdminDisastersPage from './AdminDisastersPage';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-async function apiFetch(path, options = {}) {
-  const token = localStorage.getItem('cccm-token');
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.message || data.error || 'Request failed');
-  return data;
-}
+import { apiFetch } from '../services/apiFetch';
 
 function StatusBadge({ status }) {
   const colors = { pending: '#d97706', approved: '#16a34a', rejected: '#dc2626' };
