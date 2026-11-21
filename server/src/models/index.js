@@ -11,4 +11,5 @@ module.exports = {
   ShortageOffer: require('./ShortageOffer'),
   Request: require('./Request'),
   Notification: require('./Notification'),
+  NgoComplaint: require('./NgoComplaint'),
 };

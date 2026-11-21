@@ -1,21 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-async function apiFetch(path, options = {}) {
-  const token = localStorage.getItem('cccm-token');
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || data.error || 'Request failed');
-  return data;
-}
+import { apiFetch } from '../services/apiFetch';
 
 const severityColors = { low: '#3b82f6', medium: '#d97706', high: '#ea580c', critical: '#dc2626' };
 const statusColors = { active: '#16a34a', underControl: '#d97706', closed: '#64748b' };

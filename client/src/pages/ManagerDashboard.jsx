@@ -4,12 +4,14 @@ import CalculatorTab from '../components/manager/CalculatorTab';
 import SiteSelectionTab from '../components/manager/SiteSelectionTab';
 import AssessmentsTab from '../components/manager/AssessmentsTab';
 import CampsTab from '../components/manager/CampsTab';
+import ComplaintsTab from '../components/manager/ComplaintsTab';
 
 const TABS = [
   { key: 'site', label: 'Site selection' },
   { key: 'calculator', label: 'Calculator' },
   { key: 'assessments', label: 'Assessments' },
-  { key: 'camps', label: 'My camps' },
+  { key: 'camps', label: 'Camp management' },
+  { key: 'requests', label: 'Complaints & requests' },
 ];
 
 export default function ManagerDashboard({ user, onLogout }) {
@@ -22,7 +24,7 @@ export default function ManagerDashboard({ user, onLogout }) {
       onLogout={onLogout}
       portalTitle="Camp Manager Portal"
       title={`Welcome back, ${user.fullName}`}
-      subtitle="Assess sites, calculate camp needs, and manage your camps."
+      subtitle="Assess sites, manage camp services, and respond to community requests."
     >
       <div className="dashboard-tab-bar">
         {TABS.map((t) => (
@@ -36,6 +38,7 @@ export default function ManagerDashboard({ user, onLogout }) {
       {tab === 'calculator' && <CalculatorTab />}
       {tab === 'assessments' && <AssessmentsTab />}
       {tab === 'camps' && <CampsTab refreshKey={campsVersion} />}
+      {tab === 'requests' && <ComplaintsTab />}
     </DashboardLayout>
   );
 }

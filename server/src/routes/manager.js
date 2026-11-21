@@ -14,5 +14,11 @@ router.get('/assessments', c.listAssessments);
 router.post('/camps', c.createCamp);
 router.get('/camps', c.listCamps);
 router.patch('/camps/:id', c.updateCamp);
+router.patch('/camps/:id/offers/:offerId', c.updateCampSupportOffer);
+router.get('/requests', c.listCampRequests);
+router.patch('/requests/:id', c.updateRequestStatus);
+router.get('/ngo-complaints', c.listNgoComplaints);
+router.post('/ngo-complaints', c.createNgoComplaint);
+router.patch('/ngo-complaints/:id', c.updateNgoComplaintStatus);
 
 module.exports = router;

@@ -1,22 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import DashboardLayout from '../components/DashboardLayout';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-
-async function apiFetch(path, options = {}) {
-  const token = localStorage.getItem('cccm-token');
-  const res = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || data.error || 'Request failed');
-  return data;
-}
+import { apiFetch } from '../services/apiFetch';
+import CampSupportTab from '../components/ngo/CampSupportTab';
+import NgoComplaintsTab from '../components/ngo/NgoComplaintsTab';
 
 const severityColors = { low: '#3b82f6', medium: '#d97706', high: '#ea580c', critical: '#dc2626' };
 
@@ -244,6 +230,18 @@ export default function NgoDashboard({ user, onLogout }) {
             My Response Commitments
             <span className="dashboard-tab-count">{committedCount}</span>
           </button>
+          <button
+            onClick={() => setTab('camps')}
+            className={`dashboard-tab-item ${tab === 'camps' ? 'active' : ''}`}
+          >
+            Camp facilities
+          </button>
+          <button
+            onClick={() => setTab('complaints')}
+            className={`dashboard-tab-item ${tab === 'complaints' ? 'active' : ''}`}
+          >
+            Camp complaints
+          </button>
         </div>
 
         {error && <p className="feedback error">{error}</p>}
@@ -374,6 +372,7 @@ export default function NgoDashboard({ user, onLogout }) {
                         </span>
                       </div>
                     )}
+
                   </div>
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto', paddingTop: 6 }}>
@@ -386,6 +385,9 @@ export default function NgoDashboard({ user, onLogout }) {
             </div>
           </div>
         )}
+
+        {tab === 'camps' && <CampSupportTab />}
+        {tab === 'complaints' && <NgoComplaintsTab />}
       </div>
     </DashboardLayout>
   );
