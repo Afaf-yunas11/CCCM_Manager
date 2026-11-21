@@ -67,13 +67,13 @@ export default function AdminRequestsPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showForm, setShowForm] = useState(false);
 
   // Filters
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [restrictedFilter, setRestrictedFilter] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Selected item for detail / resolution modal
@@ -82,6 +82,7 @@ export default function AdminRequestsPage() {
   const [modalPriority, setModalPriority] = useState('');
   const [modalAdminNotes, setModalAdminNotes] = useState('');
   const [modalResolution, setModalResolution] = useState('');
+  const [modalRejectionReason, setModalRejectionReason] = useState('');
   const [modalBusy, setModalBusy] = useState(false);
   const [modalError, setModalError] = useState('');
 
@@ -94,6 +95,7 @@ export default function AdminRequestsPage() {
       if (statusFilter) params.append('status', statusFilter);
       if (priorityFilter) params.append('priority', priorityFilter);
       if (categoryFilter) params.append('category', categoryFilter);
+      if (restrictedFilter) params.append('restricted', 'true');
       if (searchTerm.trim()) params.append('search', searchTerm.trim());
 
       const qs = params.toString() ? `?${params.toString()}` : '';
@@ -105,7 +107,7 @@ export default function AdminRequestsPage() {
     } finally {
       setLoading(false);
     }
-  }, [typeFilter, statusFilter, priorityFilter, categoryFilter, searchTerm]);
+  }, [typeFilter, statusFilter, priorityFilter, categoryFilter, restrictedFilter, searchTerm]);
 
   useEffect(() => {
     loadRequests();
@@ -124,6 +126,53 @@ export default function AdminRequestsPage() {
     }
   }
 
+  // Quick reject with prompt for reason
+  async function handleQuickReject(item) {
+    const reason = window.prompt(
+      `Reject "${item.title || 'this item'}"?\nPlease provide a rejection reason (will be logged in audit notes and visible to the submitter):`,
+      'Duplicate request or out of emergency assistance scope'
+    );
+    if (!reason || !reason.trim()) return;
+
+    try {
+      await apiFetch(`/admin/requests/${item._id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          status: 'rejected',
+          rejectionReason: reason.trim(),
+          resolutionDetails: `Declined: ${reason.trim()}`,
+        }),
+      });
+      loadRequests();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  // Escalate critical item to NDMA / District Command
+  async function handleEscalate(item) {
+    const confirm = window.confirm(
+      `ESCALATE TO EMERGENCY OPERATIONS?\n\nThis will escalate "${item.title}" to NDMA Emergency Operations and Provincial Camp Command for immediate emergency mobilization.\n\nProceed with escalation?`
+    );
+    if (!confirm) return;
+
+    try {
+      await apiFetch(`/admin/requests/${item._id}/escalate`, {
+        method: 'POST',
+        body: JSON.stringify({
+          escalatedTo: 'NDMA Emergency Operations & Provincial Command',
+          notes: 'Immediate triage required. High-risk emergency condition reported in camp sector.',
+        }),
+      });
+      if (activeModalItem && activeModalItem._id === item._id) {
+        setActiveModalItem(null);
+      }
+      loadRequests();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
   // Open resolution & detail modal
   function openModal(item) {
     setActiveModalItem(item);
@@ -131,6 +180,7 @@ export default function AdminRequestsPage() {
     setModalPriority(item.priority || 'medium');
     setModalAdminNotes(item.adminNotes || '');
     setModalResolution(item.resolutionDetails || '');
+    setModalRejectionReason(item.rejectionReason || '');
     setModalError('');
   }
 
@@ -141,14 +191,19 @@ export default function AdminRequestsPage() {
     setModalBusy(true);
     setModalError('');
     try {
+      const payload = {
+        status: modalStatus,
+        priority: modalPriority,
+        adminNotes: modalAdminNotes,
+        resolutionDetails: modalResolution,
+      };
+      if (modalStatus === 'rejected') {
+        payload.rejectionReason = modalRejectionReason || modalResolution || 'Request declined based on verification criteria.';
+      }
+
       await apiFetch(`/admin/requests/${activeModalItem._id}`, {
         method: 'PATCH',
-        body: JSON.stringify({
-          status: modalStatus,
-          priority: modalPriority,
-          adminNotes: modalAdminNotes,
-          resolutionDetails: modalResolution,
-        }),
+        body: JSON.stringify(payload),
       });
       setActiveModalItem(null);
       loadRequests();
@@ -171,28 +226,8 @@ export default function AdminRequestsPage() {
     }
   }
 
-  // New Request / Complaint submission
-  async function handleCreate(e) {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-    try {
-      await apiFetch('/admin/requests', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: fd.get('title'),
-          type: fd.get('type'),
-          category: fd.get('category'),
-          priority: fd.get('priority'),
-          location: fd.get('location'),
-          details: fd.get('details'),
-        }),
-      });
-      setShowForm(false);
-      loadRequests();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
+  // New Request / Complaint submission — removed from admin side.
+  // Affected persons submit through their own Community Member Portal.
 
   return (
     <div>
@@ -289,9 +324,9 @@ export default function AdminRequestsPage() {
           <div
             style={{
               padding: 16,
-              background: '#ffffff',
+              background: '#fff1f2',
               borderRadius: 8,
-              border: '1px solid #e2e8f0',
+              border: '1px solid #fecdd3',
               boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
             }}
           >
@@ -299,16 +334,38 @@ export default function AdminRequestsPage() {
               Critical / High
             </span>
             <div style={{ fontSize: '24px', fontWeight: 800, color: '#dc2626', marginTop: 4 }}>
-              {(summary.critical || 0) + (summary.high || 0)}
+              {summary.unresolvedUrgent !== undefined
+                ? summary.unresolvedUrgent
+                : (summary.critical || 0) + (summary.high || 0)}
             </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: 4 }}>
-              Needs immediate action
+            <div style={{ fontSize: '12px', color: '#991b1b', marginTop: 4, fontWeight: 500 }}>
+              Needs immediate action (Unresolved only)
+            </div>
+          </div>
+
+          <div
+            style={{
+              padding: 16,
+              background: '#faf5ff',
+              borderRadius: 8,
+              border: '1px solid #e9d5ff',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+            }}
+          >
+            <span style={{ fontSize: '11px', color: '#7e22ce', fontWeight: 700, textTransform: 'uppercase' }}>
+              Protection / Restricted
+            </span>
+            <div style={{ fontSize: '24px', fontWeight: 800, color: '#6b21a8', marginTop: 4 }}>
+              {summary.restricted || 0}
+            </div>
+            <div style={{ fontSize: '12px', color: '#7e22ce', marginTop: 4, fontWeight: 500 }}>
+              Confidential (Manager & Admin only)
             </div>
           </div>
         </div>
       )}
 
-      {/* ── Top Bar with Search & Action ── */}
+      {/* ── Top Bar with Search ── */}
       <div
         style={{
           display: 'flex',
@@ -328,134 +385,7 @@ export default function AdminRequestsPage() {
             style={{ ...formInputStyle, maxWidth: 380 }}
           />
         </div>
-
-        <button
-          className="primary-button"
-          style={{ width: 'auto', margin: 0, padding: '9px 20px', minHeight: 'auto', fontSize: '13px' }}
-          onClick={() => setShowForm(!showForm)}
-        >
-          {showForm ? 'Close Form' : '+ Log Complaint / Request'}
-        </button>
       </div>
-
-      {/* ── Log New Request / Complaint Form ── */}
-      {showForm && (
-        <form
-          onSubmit={handleCreate}
-          style={{
-            marginBottom: 24,
-            padding: 24,
-            background: '#f8fafc',
-            borderRadius: 10,
-            border: '1px solid #e2e8f0',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                Log Community Complaint or Assistance Request
-              </h3>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
-                Record issues submitted directly by residents or reported from the field.
-              </p>
-            </div>
-            <button type="button" onClick={() => setShowForm(false)} className="dashboard-filter-btn">
-              Cancel
-            </button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Title / Subject *
-              </label>
-              <input
-                name="title"
-                type="text"
-                placeholder="e.g. Broken water pipeline near Sector 3"
-                required
-                style={formInputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Type *
-              </label>
-              <select name="type" defaultValue="complaint" style={formInputStyle}>
-                <option value="complaint">Complaint</option>
-                <option value="request">Assistance Request</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Category *
-              </label>
-              <select name="category" defaultValue="water" style={formInputStyle}>
-                <option value="food">Food & Nutrition</option>
-                <option value="water">Clean Water (WASH)</option>
-                <option value="medicine">Medicine & Health</option>
-                <option value="shelter">Shelter & Non-Food Items</option>
-                <option value="sanitation">Sanitation & Waste</option>
-                <option value="protection">Protection / Vulnerability</option>
-                <option value="problem">Camp Infrastructure Problem</option>
-                <option value="other">Other Concern</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Priority Level
-              </label>
-              <select name="priority" defaultValue="high" style={formInputStyle}>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">Critical (Immediate)</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Location / Sector / Camp
-              </label>
-              <input
-                name="location"
-                type="text"
-                placeholder="e.g. Block B, Tent #42 or Sector 2"
-                style={formInputStyle}
-              />
-            </div>
-
-            <div style={{ gridColumn: '1 / -1' }}>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Full Details & Specific Needs *
-              </label>
-              <textarea
-                name="details"
-                rows="3"
-                placeholder="Describe the problem, affected families, and any safety or health risks..."
-                required
-                style={{ ...formInputStyle, resize: 'vertical' }}
-              />
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 12, marginTop: 18 }}>
-            <button
-              className="primary-button"
-              type="submit"
-              style={{ width: 'auto', margin: 0, padding: '9px 24px', minHeight: 'auto' }}
-            >
-              Submit & Register
-            </button>
-            <button type="button" onClick={() => setShowForm(false)} className="dashboard-signout-btn">
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
 
       {/* ── Filter Buttons Bar ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
@@ -497,7 +427,7 @@ export default function AdminRequestsPage() {
           ))}
         </div>
 
-        {/* Priority Filter */}
+        {/* Priority & Restricted Filter */}
         <div className="dashboard-filter-group" style={{ margin: 0 }}>
           <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, marginRight: 4 }}>Priority:</span>
           {[
@@ -515,6 +445,23 @@ export default function AdminRequestsPage() {
               {p.label}
             </button>
           ))}
+
+          <span style={{ marginLeft: 12, marginRight: 4, color: '#cbd5e1' }}>|</span>
+
+          {/* Dedicated Sensitive Cases Filter */}
+          <button
+            type="button"
+            className={`dashboard-filter-btn ${restrictedFilter ? 'active' : ''}`}
+            onClick={() => setRestrictedFilter(!restrictedFilter)}
+            style={{
+              borderColor: restrictedFilter ? '#9333ea' : '#d8b4fe',
+              background: restrictedFilter ? '#7e22ce' : '#faf5ff',
+              color: restrictedFilter ? '#ffffff' : '#6b21a8',
+              fontWeight: 700,
+            }}
+          >
+            Restricted (Protection Cases Only)
+          </button>
         </div>
       </div>
 
@@ -544,7 +491,7 @@ export default function AdminRequestsPage() {
               <tr>
                 <th>Type & Category</th>
                 <th>Subject & Details</th>
-                <th>Submitter</th>
+                <th>Submitter (Affected Person)</th>
                 <th>Location</th>
                 <th>Priority</th>
                 <th>Status</th>
@@ -554,6 +501,10 @@ export default function AdminRequestsPage() {
             <tbody>
               {items.map((item) => {
                 const isComplaint = item.type === 'complaint';
+                const isUnresolvedCritical =
+                  item.priority === 'critical' &&
+                  !['resolved', 'rejected'].includes(item.status);
+
                 return (
                   <tr key={item._id}>
                     <td>
@@ -571,23 +522,51 @@ export default function AdminRequestsPage() {
                             width: 'fit-content',
                           }}
                         >
-                          {isComplaint ? '⚠️ Complaint' : '📦 Request'}
+                          {isComplaint ? 'Complaint' : 'Request'}
                         </span>
                         <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'capitalize' }}>
                           {item.category}
                         </span>
+
                         {item.isRestricted && (
                           <span
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              gap: 2,
+                              gap: 3,
                               fontSize: '10px',
                               fontWeight: 700,
                               color: '#991b1b',
+                              background: '#fef2f2',
+                              border: '1px solid #fecaca',
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              width: 'fit-content',
                             }}
+                            title="Confidential: Restricted to Camp Manager and CCCM Admin only. Never shared with NGOs."
                           >
-                            🔒 Restricted
+                            Restricted Case
+                          </span>
+                        )}
+
+                        {item.isEscalated && (
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              fontSize: '10px',
+                              fontWeight: 800,
+                              color: '#b91c1c',
+                              background: '#fee2e2',
+                              border: '1px solid #ef4444',
+                              padding: '2px 6px',
+                              borderRadius: 4,
+                              width: 'fit-content',
+                            }}
+                            title={`Escalated to: ${item.escalatedTo || 'NDMA Operations'}`}
+                          >
+                            ESCALATED
                           </span>
                         )}
                       </div>
@@ -611,7 +590,40 @@ export default function AdminRequestsPage() {
                       >
                         {item.details}
                       </p>
-                      {item.resolutionDetails && (
+
+                      {item.isRestricted && (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            padding: '3px 8px',
+                            background: '#fff1f2',
+                            border: '1px dashed #fecdd3',
+                            borderRadius: 4,
+                            fontSize: '10px',
+                            color: '#9f1239',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Confidential Safeguarding Case: Visible to Camp Manager &amp; Admin only (Never shared with NGOs).
+                        </div>
+                      )}
+
+                      {item.rejectionReason && (
+                        <div
+                          style={{
+                            marginTop: 6,
+                            padding: '4px 8px',
+                            background: '#fef2f2',
+                            borderRadius: 4,
+                            fontSize: '11px',
+                            color: '#991b1b',
+                          }}
+                        >
+                          <strong>Rejection Reason:</strong> {item.rejectionReason}
+                        </div>
+                      )}
+
+                      {item.resolutionDetails && !item.rejectionReason && (
                         <div
                           style={{
                             marginTop: 6,
@@ -628,10 +640,14 @@ export default function AdminRequestsPage() {
                     </td>
 
                     <td>
-                      <div style={{ fontWeight: 600, fontSize: '13px' }}>{item.userId?.fullName || 'Anonymous'}</div>
-                      <div style={{ fontSize: '11px', color: '#64748b' }}>{item.userId?.email || '—'}</div>
-                      <div style={{ fontSize: '10px', color: '#94a3b8', textTransform: 'capitalize' }}>
-                        Role: {item.userId?.role || 'Citizen'}
+                      <div style={{ fontWeight: 600, fontSize: '13px', color: '#0f172a' }}>
+                        {item.userId?.fullName || 'Resident Citizen'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#64748b' }}>
+                        {item.userId?.email || '—'}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#2563eb', fontWeight: 600, textTransform: 'capitalize' }}>
+                        {item.userId?.role === 'affectedPerson' ? 'Affected Person' : (item.userId?.role || 'Affected Person')}
                       </div>
                     </td>
 
@@ -656,6 +672,27 @@ export default function AdminRequestsPage() {
 
                     <td>
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {/* Escalate button for unresolved critical items */}
+                        {isUnresolvedCritical && !item.isEscalated && (
+                          <button
+                            type="button"
+                            className="dashboard-signout-btn"
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '11px',
+                              color: '#ffffff',
+                              background: '#dc2626',
+                              borderColor: '#b91c1c',
+                              fontWeight: 700,
+                            }}
+                            onClick={() => handleEscalate(item)}
+                            title="Escalate critical threat to NDMA operations"
+                          >
+                            Escalate
+                          </button>
+                        )}
+
+                        {/* Start work button for pending items */}
                         {item.status === 'pending' && (
                           <button
                             type="button"
@@ -667,7 +704,9 @@ export default function AdminRequestsPage() {
                             Start Work
                           </button>
                         )}
-                        {item.status !== 'resolved' && (
+
+                        {/* Resolve button for pending/in_progress items */}
+                        {item.status !== 'resolved' && item.status !== 'rejected' && (
                           <button
                             type="button"
                             className="dashboard-signout-btn"
@@ -678,6 +717,20 @@ export default function AdminRequestsPage() {
                             Resolve
                           </button>
                         )}
+
+                        {/* Reject button for pending/in_progress items */}
+                        {item.status !== 'resolved' && item.status !== 'rejected' && (
+                          <button
+                            type="button"
+                            className="dashboard-signout-btn"
+                            style={{ padding: '4px 8px', fontSize: '11px', color: '#dc2626', borderColor: '#fca5a5' }}
+                            onClick={() => handleQuickReject(item)}
+                            title="Reject request with logged reason"
+                          >
+                            Reject
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           className="dashboard-signout-btn"
@@ -714,7 +767,7 @@ export default function AdminRequestsPage() {
               background: '#ffffff',
               borderRadius: 12,
               width: '100%',
-              maxWidth: 620,
+              maxWidth: 640,
               padding: 24,
               boxShadow: '0 20px 25px -5px rgba(0,0,0,0.2)',
               maxHeight: '90vh',
@@ -723,21 +776,55 @@ export default function AdminRequestsPage() {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
               <div>
-                <span
-                  style={{
-                    display: 'inline-block',
-                    padding: '2px 8px',
-                    borderRadius: 4,
-                    fontSize: '11px',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    background: activeModalItem.type === 'complaint' ? '#fee2e2' : '#e0f2fe',
-                    color: activeModalItem.type === 'complaint' ? '#991b1b' : '#0369a1',
-                    marginBottom: 6,
-                  }}
-                >
-                  {activeModalItem.type === 'complaint' ? '⚠️ Complaint' : '📦 Assistance Request'}
-                </span>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 6 }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      padding: '2px 8px',
+                      borderRadius: 4,
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      background: activeModalItem.type === 'complaint' ? '#fee2e2' : '#e0f2fe',
+                      color: activeModalItem.type === 'complaint' ? '#991b1b' : '#0369a1',
+                    }}
+                  >
+                    {activeModalItem.type === 'complaint' ? 'Complaint' : 'Assistance Request'}
+                  </span>
+
+                  {activeModalItem.isRestricted && (
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: '11px',
+                        fontWeight: 700,
+                        background: '#fef2f2',
+                        color: '#991b1b',
+                        border: '1px solid #fecaca',
+                      }}
+                    >
+                      Restricted Case
+                    </span>
+                  )}
+
+                  {activeModalItem.isEscalated && (
+                    <span
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: 4,
+                        fontSize: '11px',
+                        fontWeight: 800,
+                        background: '#fee2e2',
+                        color: '#b91c1c',
+                        border: '1px solid #ef4444',
+                      }}
+                    >
+                      ESCALATED
+                    </span>
+                  )}
+                </div>
+
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, color: '#0f172a' }}>
                   {activeModalItem.title || 'Record Details'}
                 </h3>
@@ -747,9 +834,52 @@ export default function AdminRequestsPage() {
                 onClick={() => setActiveModalItem(null)}
                 style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#64748b' }}
               >
-                ✕
+                X
               </button>
             </div>
+
+            {/* Confidential Warning for Restricted Protection Cases */}
+            {activeModalItem.isRestricted && (
+              <div
+                style={{
+                  background: '#fff1f2',
+                  border: '1px solid #fecdd3',
+                  borderRadius: 8,
+                  padding: '12px 14px',
+                  marginBottom: 16,
+                  color: '#9f1239',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                }}
+              >
+                RESTRICTED & CONFIDENTIAL CASE — Protection Safeguarding Protocol
+                <div style={{ fontWeight: 400, fontSize: '11px', marginTop: 3, color: '#881337', lineHeight: 1.4 }}>
+                  This case involves sensitive protection/vulnerability concerns. Access is strictly limited to CCCM Admin and Camp Management. This file is automatically excluded from shared NGO exports and external partner views.
+                </div>
+              </div>
+            )}
+
+            {/* Escalation details if active */}
+            {activeModalItem.isEscalated && (
+              <div
+                style={{
+                  background: '#fef2f2',
+                  border: '1px solid #fca5a5',
+                  borderRadius: 8,
+                  padding: '12px 14px',
+                  marginBottom: 16,
+                  color: '#b91c1c',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                }}
+              >
+                ESCALATED EMERGENCY CASE
+                <div style={{ fontWeight: 500, fontSize: '11px', marginTop: 2, color: '#7f1d1d' }}>
+                  Escalated to: {activeModalItem.escalatedTo || 'NDMA Operations Command'} on{' '}
+                  {activeModalItem.escalatedAt ? new Date(activeModalItem.escalatedAt).toLocaleString() : 'N/A'}
+                </div>
+              </div>
+            )}
 
             {/* Resident Details Readout */}
             <div
@@ -765,7 +895,10 @@ export default function AdminRequestsPage() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 10 }}>
                 <div>
                   <span style={{ color: '#64748b' }}>Submitter: </span>
-                  <strong>{activeModalItem.userId?.fullName || 'Citizen'}</strong> ({activeModalItem.userId?.email})
+                  <strong>{activeModalItem.userId?.fullName || 'Resident Citizen'}</strong>
+                  <div style={{ fontSize: '11px', color: '#64748b' }}>
+                    {activeModalItem.userId?.email || '—'} ({activeModalItem.userId?.role === 'affectedPerson' ? 'Affected Person' : (activeModalItem.userId?.role || 'Resident')})
+                  </div>
                 </div>
                 <div>
                   <span style={{ color: '#64748b' }}>Location: </span>
@@ -827,6 +960,23 @@ export default function AdminRequestsPage() {
                 </div>
               </div>
 
+              {/* Rejection Reason textarea if status is rejected */}
+              {modalStatus === 'rejected' && (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#b91c1c', marginBottom: 6 }}>
+                    Rejection Reason * (Required for rejected status)
+                  </label>
+                  <textarea
+                    rows="2"
+                    value={modalRejectionReason}
+                    onChange={(e) => setModalRejectionReason(e.target.value)}
+                    placeholder="Provide specific reason for rejection (e.g. Duplicate claim, assistance already provided, out of mandate)..."
+                    required
+                    style={{ ...formInputStyle, borderColor: '#fca5a5', resize: 'vertical' }}
+                  />
+                </div>
+              )}
+
               <div style={{ marginBottom: 14 }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
                   Resolution Details & Feedback to Citizen
@@ -856,20 +1006,44 @@ export default function AdminRequestsPage() {
               {modalError && <p className="feedback error">{modalError}</p>}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
-                <button
-                  type="button"
-                  onClick={() => handleDelete(activeModalItem._id)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#dc2626',
-                    cursor: 'pointer',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                  }}
-                >
-                  Delete Record
-                </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => handleDelete(activeModalItem._id)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#dc2626',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Delete Record
+                  </button>
+
+                  {/* Escalate button inside modal */}
+                  {activeModalItem.priority === 'critical' &&
+                    !activeModalItem.isEscalated &&
+                    !['resolved', 'rejected'].includes(activeModalItem.status) && (
+                      <button
+                        type="button"
+                        onClick={() => handleEscalate(activeModalItem)}
+                        style={{
+                          background: '#dc2626',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 6,
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Escalate to NDMA
+                      </button>
+                    )}
+                </div>
 
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button

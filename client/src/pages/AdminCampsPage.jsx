@@ -64,11 +64,8 @@ const formInputStyle = {
 export default function AdminCampsPage() {
   const [camps, setCamps] = useState([]);
   const [summary, setSummary] = useState(null);
-  const [managers, setManagers] = useState([]);
-  const [disasters, setDisasters] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [showCreateForm, setShowCreateForm] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('');
@@ -98,8 +95,6 @@ export default function AdminCampsPage() {
       const data = await apiFetch(`/admin/camps${qs}`);
       setCamps(data.camps || []);
       setSummary(data.summary || null);
-      if (data.availableManagers) setManagers(data.availableManagers);
-      if (data.activeDisasters) setDisasters(data.activeDisasters);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -111,52 +106,10 @@ export default function AdminCampsPage() {
     loadCamps();
   }, [loadCamps]);
 
-  // Handle Camp Creation
-  async function handleCreateCamp(e) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const fd = new FormData(form);
-
-    const facilities = [];
-    ['water', 'health', 'latrines', 'security', 'solar', 'childcare', 'waste'].forEach((key) => {
-      const val = fd.get(`fac_${key}`);
-      if (val) facilities.push(val);
-    });
-
-    const resources = [
-      { name: 'water', level: fd.get('res_water') || 'sufficient' },
-      { name: 'food', level: fd.get('res_food') || 'sufficient' },
-      { name: 'medicine', level: fd.get('res_medicine') || 'sufficient' },
-      { name: 'shelter', level: fd.get('res_shelter') || 'sufficient' },
-    ];
-
-    try {
-      await apiFetch('/admin/camps', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: fd.get('name'),
-          capacity: Number(fd.get('capacity')),
-          population: Number(fd.get('population')) || 0,
-          managerId: fd.get('managerId') || undefined,
-          disasterId: fd.get('disasterId') || undefined,
-          location: { name: fd.get('locationName') || '' },
-          plannedClosureDate: fd.get('plannedClosureDate') || undefined,
-          facilities,
-          resources,
-        }),
-      });
-      setShowCreateForm(false);
-      loadCamps();
-    } catch (err) {
-      setError(err.message);
-    }
-  }
-
   // Open Extension Modal
   function openExtendModal(camp) {
     setExtendingCamp(camp);
     setExtensionDays(30);
-    // calculate default 30 days from now or current closure date
     const base = camp.plannedClosureDate && new Date(camp.plannedClosureDate) > new Date()
       ? new Date(camp.plannedClosureDate)
       : new Date();
@@ -277,33 +230,6 @@ export default function AdminCampsPage() {
 
   return (
     <div>
-      {/* ── Policy Notice Banner ── */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          padding: '12px 18px',
-          background: '#eff6ff',
-          borderRadius: 8,
-          border: '1px solid #bfdbfe',
-          marginBottom: 20,
-          color: '#1e40af',
-          fontSize: '13px',
-        }}
-      >
-        <span style={{ fontSize: '20px' }}>ℹ️</span>
-        <div>
-          <strong>CCCM Camp Decommissioning Policy: </strong>
-          <span>
-            Camps <strong>never close automatically</strong>. When a planned closure date arrives,
-            the status changes to <em>Closure Due</em>. An authorized manager or administrator must
-            explicitly review the field situation to either <strong>confirm closure</strong> or{' '}
-            <strong>grant an operational extension</strong>.
-          </span>
-        </div>
-      </div>
-
       {/* ── KPI Summary Cards ── */}
       {summary && (
         <div
@@ -417,243 +343,42 @@ export default function AdminCampsPage() {
         </div>
       )}
 
-      {/* ── Search & Actions Bar ── */}
+      {/* ── Search & Filters Bar ── */}
       <div
         style={{
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: 12,
           marginBottom: 16,
         }}
       >
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', flex: 1, minWidth: 280 }}>
-          <input
-            type="text"
-            placeholder="Search camp by name, location, manager…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            style={{ ...formInputStyle, maxWidth: 360 }}
-          />
+        <input
+          type="text"
+          placeholder="Search camp by name, location, manager…"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          style={{ ...formInputStyle, maxWidth: 360 }}
+        />
 
-          <div className="dashboard-filter-group" style={{ margin: 0 }}>
-            {[
-              { key: '', label: 'All Statuses' },
-              { key: 'active', label: 'Active' },
-              { key: 'closureDue', label: '⚠️ Closure Due' },
-              { key: 'extended', label: 'Extended' },
-              { key: 'closed', label: 'Closed' },
-            ].map((s) => (
-              <button
-                key={s.key || 'all-camps'}
-                className={`dashboard-filter-btn ${statusFilter === s.key ? 'active' : ''}`}
-                onClick={() => setStatusFilter(s.key)}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button
-          className="primary-button"
-          style={{ width: 'auto', margin: 0, padding: '9px 20px', minHeight: 'auto', fontSize: '13px' }}
-          onClick={() => setShowCreateForm(!showCreateForm)}
-        >
-          {showCreateForm ? 'Close Form' : '+ Establish New Camp'}
-        </button>
-      </div>
-
-      {/* ── Establish New Camp Form ── */}
-      {showCreateForm && (
-        <form
-          onSubmit={handleCreateCamp}
-          style={{
-            marginBottom: 24,
-            padding: 24,
-            background: '#f8fafc',
-            borderRadius: 10,
-            border: '1px solid #e2e8f0',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#0f172a' }}>
-                Establish New Relief Camp Site
-              </h3>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#64748b' }}>
-                Register site parameters, assign manager, and set the planned operational timeline.
-              </p>
-            </div>
-            <button type="button" onClick={() => setShowCreateForm(false)} className="dashboard-filter-btn">
-              Cancel
-            </button>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14 }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Camp Name *
-              </label>
-              <input
-                name="name"
-                type="text"
-                placeholder="e.g. Camp Jalozai Sector Alpha"
-                required
-                style={formInputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Linked Disaster Incident
-              </label>
-              <select name="disasterId" style={formInputStyle}>
-                <option value="">-- Standalone / General Emergency --</option>
-                {disasters.map((d) => (
-                  <option key={d._id} value={d._id}>
-                    {d.title} ({d.type} - {d.severity})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Assigned Camp Manager *
-              </label>
-              <select name="managerId" style={formInputStyle}>
-                {managers.map((m) => (
-                  <option key={m._id} value={m._id}>
-                    {m.fullName} ({m.email}) [{m.role}]
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Location / District *
-              </label>
-              <input
-                name="locationName"
-                type="text"
-                placeholder="e.g. Nowshera District, KP"
-                required
-                style={formInputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Maximum Shelter Capacity (persons) *
-              </label>
-              <input
-                name="capacity"
-                type="number"
-                min="10"
-                placeholder="e.g. 2500"
-                required
-                style={formInputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Current Sheltered Population
-              </label>
-              <input
-                name="population"
-                type="number"
-                min="0"
-                defaultValue="0"
-                placeholder="e.g. 450"
-                style={formInputStyle}
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#334155', marginBottom: 6 }}>
-                Planned Closure Date *
-              </label>
-              <input
-                name="plannedClosureDate"
-                type="date"
-                defaultValue={
-                  new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-                }
-                required
-                style={formInputStyle}
-              />
-            </div>
-          </div>
-
-          {/* Initial Supplies Status */}
-          <div style={{ marginTop: 16 }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 8 }}>
-              Initial Essential Resources Supply Status
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-              {['water', 'food', 'medicine', 'shelter'].map((res) => (
-                <div key={res}>
-                  <span style={{ fontSize: '11px', color: '#64748b', textTransform: 'capitalize' }}>
-                    {res} Availability
-                  </span>
-                  <select name={`res_${res}`} defaultValue="sufficient" style={formInputStyle}>
-                    <option value="sufficient">Sufficient Supply</option>
-                    <option value="low">Low Supply Warning</option>
-                    <option value="critical">Critical Shortage</option>
-                  </select>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Facilities Checkboxes */}
-          <div style={{ marginTop: 16 }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: '#334155', marginBottom: 8 }}>
-              Established Camp Infrastructure & Facilities
-            </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, fontSize: '13px', color: '#334155' }}>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                <input type="checkbox" name="fac_water" value="Clean Water Network" defaultChecked /> Clean Water Network
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                <input type="checkbox" name="fac_latrines" value="Sanitation Latrines" defaultChecked /> Latrines & Washrooms
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                <input type="checkbox" name="fac_health" value="Emergency Clinic" defaultChecked /> Emergency Clinic
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                <input type="checkbox" name="fac_security" value="Perimeter Security" defaultChecked /> Perimeter Security
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                <input type="checkbox" name="fac_solar" value="Solar Lighting" defaultChecked /> Solar Lighting
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                <input type="checkbox" name="fac_childcare" value="Child-Friendly Space" /> Child-Friendly Space
-              </label>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                <input type="checkbox" name="fac_waste" value="Waste Disposal Pit" /> Waste Disposal Pit
-              </label>
-            </div>
-          </div>
-
-          <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
+        <div className="dashboard-filter-group" style={{ margin: 0 }}>
+          {[
+            { key: '', label: 'All Statuses' },
+            { key: 'active', label: 'Active' },
+            { key: 'closureDue', label: 'Closure Due' },
+            { key: 'extended', label: 'Extended' },
+            { key: 'closed', label: 'Closed' },
+          ].map((s) => (
             <button
-              className="primary-button"
-              type="submit"
-              style={{ width: 'auto', margin: 0, padding: '9px 24px', minHeight: 'auto' }}
+              key={s.key || 'all-camps'}
+              className={`dashboard-filter-btn ${statusFilter === s.key ? 'active' : ''}`}
+              onClick={() => setStatusFilter(s.key)}
             >
-              Establish Camp
+              {s.label}
             </button>
-            <button type="button" onClick={() => setShowCreateForm(false)} className="dashboard-signout-btn">
-              Cancel
-            </button>
-          </div>
-        </form>
-      )}
+          ))}
+        </div>
+      </div>
 
       {error && <p className="feedback error">{error}</p>}
       {loading && <p className="feedback notice">Loading relief camps…</p>}
@@ -670,9 +395,6 @@ export default function AdminCampsPage() {
           }}
         >
           <p style={{ margin: 0, fontWeight: 500 }}>No camp sites found matching current filters.</p>
-          <p style={{ margin: '6px 0 0', fontSize: '12px' }}>
-            Click "+ Establish New Camp" above to create and initialize the first site.
-          </p>
         </div>
       )}
 
@@ -707,10 +429,10 @@ export default function AdminCampsPage() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <h3 style={{ margin: 0, fontSize: '17px', fontWeight: 700, color: '#0f172a' }}>
-                      ⛺ {camp.name}
+                      {camp.name}
                     </h3>
                     <Badge color={statusColors[camp.status] || '#64748b'}>
-                      {isClosureDue ? '⚠️ Closure Due' : camp.status}
+                      {isClosureDue ? 'Closure Due' : camp.status}
                     </Badge>
                     {camp.disasterId && (
                       <span
@@ -723,7 +445,7 @@ export default function AdminCampsPage() {
                           fontWeight: 600,
                         }}
                       >
-                        🌪️ {camp.disasterId.title}
+                        {camp.disasterId.title}
                       </span>
                     )}
                   </div>
@@ -755,7 +477,7 @@ export default function AdminCampsPage() {
                         onClick={() => openExtendModal(camp)}
                         title="Extend operational timeline"
                       >
-                        ⏱️ Extend Duration
+                        Extend Duration
                       </button>
 
                       <button
@@ -811,23 +533,17 @@ export default function AdminCampsPage() {
                     background: '#fffbeb',
                     borderRadius: 6,
                     border: '1px solid #fde68a',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
                     fontSize: '13px',
                     color: '#92400e',
                   }}
                 >
-                  <span style={{ fontSize: '18px' }}>⚠️</span>
-                  <div>
-                    <strong>Action Required: Planned closure date has arrived. </strong>
-                    <span>
-                      Under CCCM standard operating procedures,{' '}
-                      <strong>camps never close automatically</strong>. The assigned manager or admin
-                      must either click <strong>"Confirm Closure"</strong> to decommission, or{' '}
-                      <strong>"Extend Duration"</strong> to keep the camp active.
-                    </span>
-                  </div>
+                  <strong>Action Required: Planned closure date has arrived. </strong>
+                  <span>
+                    Under CCCM standard operating procedures,{' '}
+                    <strong>camps never close automatically</strong>. The assigned manager or admin
+                    must either click <strong>&quot;Confirm Closure&quot;</strong> to decommission, or{' '}
+                    <strong>&quot;Extend Duration&quot;</strong> to keep the camp active.
+                  </span>
                 </div>
               )}
 
@@ -875,7 +591,6 @@ export default function AdminCampsPage() {
                   borderTop: '1px solid #f1f5f9',
                 }}
               >
-                {/* 4 Essential Resources */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Resources:</span>
                   {(camp.resources || []).map((r) => {
@@ -899,7 +614,6 @@ export default function AdminCampsPage() {
                   })}
                 </div>
 
-                {/* Dates */}
                 <div style={{ fontSize: '12px', color: '#64748b' }}>
                   {camp.plannedClosureDate && (
                     <span>
@@ -935,7 +649,7 @@ export default function AdminCampsPage() {
                         color: '#475569',
                       }}
                     >
-                      ✓ {fac}
+                      {fac}
                     </span>
                   ))}
                 </div>
@@ -990,7 +704,7 @@ export default function AdminCampsPage() {
                         setExtensionDays(days);
                         const base =
                           extendingCamp.plannedClosureDate &&
-                          new Date(extendingCamp.plannedClosureDate) > new Date()
+                            new Date(extendingCamp.plannedClosureDate) > new Date()
                             ? new Date(extendingCamp.plannedClosureDate)
                             : new Date();
                         const next = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);

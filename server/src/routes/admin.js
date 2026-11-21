@@ -12,6 +12,7 @@ const {
   getAdminRequests,
   createRequest,
   updateRequestStatus,
+  escalateRequest,
   deleteRequest,
 } = require('../controllers/requestController');
 const {
@@ -43,6 +44,7 @@ router.delete('/disasters/:id', deleteDisaster);
 router.get('/requests', getAdminRequests);
 router.post('/requests', createRequest);
 router.patch('/requests/:id', updateRequestStatus);
+router.post('/requests/:id/escalate', escalateRequest);
 router.delete('/requests/:id', deleteRequest);
 
 // Camp management
