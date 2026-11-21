@@ -25,6 +25,8 @@ const siteAssessmentSchema = new mongoose.Schema(
       elevationM: Number,
       nearestHospitalKm: Number,
       floodDischarge: Number,
+      slopePercentEstimate: Number,
+      notes: [String], // e.g. which API failed
       fetchedAt: Date,
     },
 
