@@ -115,16 +115,29 @@ function assessSite(input) {
   if (input.availableAreaM2 < req.landM2.min) fails.push(`Area ${input.availableAreaM2} m2 is below the 30 m2/person minimum (${req.landM2.min} m2) [p.6]`);
   else if (input.availableAreaM2 < req.landM2.max) warns.push(`Area meets the minimum but not the 45 m2/person comfort level (${req.landM2.max} m2) [p.6]`);
 
-  if (input.slopePercent < G.site.slopePercent.min || input.slopePercent > G.site.slopePercent.max)
+  // Unknown (undefined) answers never pass silently: they become "not confirmed" warnings.
+  if (typeof input.slopePercent !== 'number') warns.push('Slope not known [p.4]');
+  else if (input.slopePercent < G.site.slopePercent.min || input.slopePercent > G.site.slopePercent.max)
     warns.push(`Slope ${input.slopePercent}% is outside the 1-5% range for natural drainage [p.4]`);
-  if (!input.allSeasonRoad) fails.push('No all-season road access [p.4]');
-  if (!input.waterSourceNearby) warns.push('No water source nearby [p.4]');
-  if (input.landslideRisk) fails.push('Landslide/erosion risk [p.4]');
-  if (input.malariaProne) warns.push('Area prone to malaria / water-borne disease [p.4]');
+
+  if (input.allSeasonRoad === false) fails.push('No all-season road access [p.4]');
+  else if (input.allSeasonRoad !== true) warns.push('All-season road access not confirmed [p.4]');
+
+  if (input.waterSourceNearby === false) warns.push('No water source nearby [p.4]');
+  else if (input.waterSourceNearby !== true) warns.push('Water source nearby not confirmed [p.4]');
+
+  if (input.landslideRisk === true) fails.push('Landslide/erosion risk [p.4]');
+  else if (input.landslideRisk !== false) warns.push('Landslide/erosion risk not confirmed [p.4]');
+
+  if (input.malariaProne === true) warns.push('Area prone to malaria / water-borne disease [p.4]');
+  else if (input.malariaProne !== false) warns.push('Malaria / water-borne disease risk not confirmed [p.4]');
+
   if (input.titleClear === false) warns.push('Land ownership title not clear [p.4]');
+  else if (input.titleClear !== true) warns.push('Land ownership title not confirmed [p.4]');
 
   if (input.floodRiskManager === 'high') fails.push('Manager reports high flood risk [p.4]');
   else if (input.floodRiskManager === 'medium') warns.push('Manager reports medium flood risk [p.4]');
+  else if (input.floodRiskManager !== 'low') warns.push('Flood risk not confirmed by manager [p.4]');
 
   if (typeof input.riverDistanceM === 'number') { // indicative, from API, NOT NDMA
     if (input.riverDistanceM < G.placeholders.riverDistanceHighRiskM) warns.push(`Indicative: river ${input.riverDistanceM} m away (project threshold, not NDMA)`);
@@ -141,9 +154,15 @@ function buildReportPrompt(siteInput, assessment, apiData) {
 Use ONLY the JSON provided. Do not invent numbers, distances, or facts.
 If a value is missing, write "not provided".
 Do not decide suitability yourself: report the "result" field exactly as given.
+Only list risks from "assessment.fails" or "assessment.warns"; do not frame an in-range value as a risk.
 Cite the NDMA page number from the findings where available.
 Mark values from "apiData" as "indicative". Keep it under 250 words.
-Sections: Summary, Risks, Resource needs, Recommended actions.`,
+Write a readable plain-text report, not JSON. Do not use braces, quoted field names, or code fences.
+Use these headings on separate lines: Summary, Risks, Data limitations, Resource needs, Recommended actions.
+Use concise sentences and bullets, and include units for measurements.
+Use "assessment.requirements" as the only source for resource figures, preserve its ranges, and do not replace figures with generic recommendations.
+Recommended actions must address the listed fails, warnings, or data limitations; do not invent generic issues.
+If an apiData note says a lookup timed out or was unavailable, say it could not be verified; do not say that no feature exists.`,
     user: JSON.stringify({ guidelineSource: G.source, siteInput, assessment, apiData }),
   };
 }
