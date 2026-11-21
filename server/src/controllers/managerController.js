@@ -3,7 +3,8 @@ const mongoose = require('mongoose');
 const { Disaster, SiteAssessment, Camp } = require('../models');
 const { calculateRequirements, assessSite } = require('../config/guidelines');
 const { fetchSiteData } = require('../services/siteApis');
-const { generateReport } = require('../services/llmReport');
+const { generateReport, formatReport } = require('../services/llmReport');
+const { polygonAreaM2 } = require('../utils/geo');
 
 const validCoords = (lat, lng) =>
   typeof lat === 'number' && typeof lng === 'number' && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
@@ -33,16 +34,26 @@ async function siteData(req, res) {
   res.json(await fetchSiteData(lat, lng));
 }
 
-// POST /api/manager/assessments { disasterId?, location:{name,lat,lng}, input:{...} }
+// POST /api/manager/assessments { disasterId?, location:{name,lat,lng}, polygon?:[{lat,lng}], input:{...} }
 async function createAssessment(req, res) {
-  const { disasterId, location = {}, input = {} } = req.body;
+  const { disasterId, location = {}, input = {}, polygon } = req.body;
   if (!validCoords(location.lat, location.lng)) return res.status(400).json({ message: 'Pick a location on the map first.' });
 
   const population = Number(input.population);
-  const availableAreaM2 = Number(input.availableAreaM2);
   if (!Number.isInteger(population) || population < 1) return res.status(400).json({ message: 'Population must be a whole number of at least 1.' });
-  if (!(availableAreaM2 > 0)) return res.status(400).json({ message: 'Available area (m2) must be greater than 0.' });
   if (disasterId && !mongoose.isValidObjectId(disasterId)) return res.status(400).json({ message: 'Invalid disaster.' });
+
+  // Optional drawn boundary. The server recomputes the area itself.
+  let drawn = [];
+  if (Array.isArray(polygon) && polygon.length >= 3) {
+    if (polygon.length > 50 || !polygon.every((p) => validCoords(p?.lat, p?.lng))) return res.status(400).json({ message: 'Invalid site boundary.' });
+    drawn = polygon.map((p) => ({ lat: p.lat, lng: p.lng }));
+  }
+  const drawnArea = drawn.length ? polygonAreaM2(drawn) : 0;
+  const typedArea = Number(input.availableAreaM2);
+  const availableAreaM2 = typedArea > 0 ? typedArea : drawnArea; // a typed value overrides the drawn one
+  if (!(availableAreaM2 > 0)) return res.status(400).json({ message: 'Draw the site boundary or enter the available area (m2).' });
+  const areaSource = drawnArea && Math.abs(availableAreaM2 - drawnArea) <= drawnArea * 0.01 ? 'drawn' : 'manual';
 
   // Fetched on the server so the client cannot fake API values.
   const apiData = await fetchSiteData(location.lat, location.lng);
@@ -52,11 +63,11 @@ async function createAssessment(req, res) {
     population,
     availableAreaM2,
     slopePercent: Number.isFinite(manualSlope) ? manualSlope : apiData.slopePercentEstimate, // manual wins
-    allSeasonRoad: toBool(input.allSeasonRoad),
+    allSeasonRoad: toBool(input.allSeasonRoad),       // undefined = "not sure"
     waterSourceNearby: toBool(input.waterSourceNearby),
-    floodRiskManager: ['low', 'medium', 'high'].includes(input.floodRiskManager) ? input.floodRiskManager : 'low',
-    landslideRisk: toBool(input.landslideRisk) ?? false,
-    malariaProne: toBool(input.malariaProne) ?? false,
+    floodRiskManager: ['low', 'medium', 'high'].includes(input.floodRiskManager) ? input.floodRiskManager : undefined,
+    landslideRisk: toBool(input.landslideRisk),
+    malariaProne: toBool(input.malariaProne),
     titleClear: toBool(input.titleClear),
   };
 
@@ -67,6 +78,8 @@ async function createAssessment(req, res) {
     managerId: req.user._id,
     disasterId: disasterId || undefined,
     location: { name: String(location.name || '').slice(0, 200), lat: location.lat, lng: location.lng },
+    polygon: drawn,
+    areaSource,
     input: cleanInput,
     apiData,
     result: assessment.result,
@@ -81,7 +94,11 @@ async function createAssessment(req, res) {
 // GET /api/manager/assessments (mine)
 async function listAssessments(req, res) {
   const docs = await SiteAssessment.find({ managerId: req.user._id }).sort({ createdAt: -1 }).limit(100);
-  res.json(docs);
+  res.json(docs.map((doc) => {
+    const assessment = doc.toObject();
+    assessment.llmReport = formatReport(assessment.llmReport || '');
+    return assessment;
+  }));
 }
 
 // POST /api/manager/camps { assessmentId, name, capacity, disasterId?, plannedClosureDate?, facilities? }
@@ -90,8 +107,8 @@ async function createCamp(req, res) {
   if (!mongoose.isValidObjectId(assessmentId)) return res.status(400).json({ message: 'A valid assessment is required.' });
   const assessment = await SiteAssessment.findOne({ _id: assessmentId, managerId: req.user._id });
   if (!assessment) return res.status(404).json({ message: 'Assessment not found.' });
-  if (assessment.result === 'not_suitable')
-    return res.status(409).json({ message: 'This site was assessed as not suitable. Run a new assessment for a different site.' });
+  if (assessment.result === 'not_suitable' && req.body.acceptUnsuitableRisk !== true)
+    return res.status(409).json({ message: 'Confirm that you understand the risks before creating a camp on a site assessed as not suitable.' });
   if (!name || !String(name).trim()) return res.status(400).json({ message: 'Camp name is required.' });
   const cap = Number(capacity);
   if (!Number.isInteger(cap) || cap < 1) return res.status(400).json({ message: 'Capacity must be a whole number of at least 1.' });
