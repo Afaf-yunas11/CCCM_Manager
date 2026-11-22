@@ -48,5 +48,30 @@ async function sendVerificationCode(email, code) {
   }
 }
 
-module.exports = { sendVerificationCode };
+async function sendOperationalEmail({ to, bcc, replyTo, subject, text }) {
+  const transporter = createTransporter();
+  if (!transporter) {
+    const error = new Error('Email is not configured. Add valid SMTP settings before sending messages.');
+    error.status = 503;
+    throw error;
+  }
+
+  try {
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM,
+      to,
+      bcc,
+      replyTo,
+      subject,
+      text,
+    });
+  } catch (error) {
+    console.error('Operational email delivery failed:', error.message);
+    const deliveryError = new Error('Email could not be delivered. Check SMTP settings and recipient addresses.');
+    deliveryError.status = 502;
+    throw deliveryError;
+  }
+}
+
+module.exports = { sendVerificationCode, sendOperationalEmail };
 

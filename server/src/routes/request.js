@@ -1,7 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../middleware/auth');
 const {
-  createRequest,
+  createRequestLegacy: createRequest,
   getUserRequests,
 } = require('../controllers/requestController');
 

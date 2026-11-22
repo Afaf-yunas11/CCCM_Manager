@@ -5,6 +5,8 @@ const adminRoutes = require('./routes/admin');
 const ngoRoutes = require('./routes/ngo');
 const requestRoutes = require('./routes/request');
 const campRoutes = require('./routes/camp');
+const managerRoutes = require('./routes/manager');
+const residentRoutes = require('./routes/resident');
 
 const app = express();
 const configuredOrigin = process.env.CLIENT_ORIGIN;
@@ -35,6 +37,8 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/ngo', ngoRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/camps', campRoutes);
+app.use('/api/manager', managerRoutes);
+app.use('/api/resident', residentRoutes);
 app.use((error, req, res, next) => {
   console.error(error);
   if (error.accountCreated) {
@@ -52,4 +56,3 @@ app.use((error, req, res, next) => {
 });
 
 module.exports = app;
-

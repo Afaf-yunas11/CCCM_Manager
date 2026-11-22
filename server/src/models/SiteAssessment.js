@@ -5,6 +5,8 @@ const siteAssessmentSchema = new mongoose.Schema(
     managerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     disasterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Disaster' }, // optional
     location: { name: String, lat: Number, lng: Number },
+    polygon: [{ _id: false, lat: Number, lng: Number }], // drawn site boundary (optional)
+    areaSource: { type: String, enum: ['drawn', 'manual'] },
 
     // fields the camp manager fills in (names match guidelines.js assessSite input)
     input: {
@@ -13,9 +15,9 @@ const siteAssessmentSchema = new mongoose.Schema(
       slopePercent: Number,
       allSeasonRoad: Boolean,
       waterSourceNearby: Boolean,
-      floodRiskManager: { type: String, enum: ['low', 'medium', 'high'], default: 'low' },
-      landslideRisk: { type: Boolean, default: false },
-      malariaProne: { type: Boolean, default: false },
+      floodRiskManager: { type: String, enum: ['low', 'medium', 'high'] }, // undefined = not confirmed
+      landslideRisk: Boolean, // undefined = not confirmed
+      malariaProne: Boolean, // undefined = not confirmed
       titleClear: Boolean,
     },
 
@@ -25,6 +27,12 @@ const siteAssessmentSchema = new mongoose.Schema(
       elevationM: Number,
       nearestHospitalKm: Number,
       floodDischarge: Number,
+      slopePercentEstimate: Number,
+      waterPointsCount: Number,
+      nearestWaterPointM: Number,
+      roadDistanceM: Number,
+      mainRoadDistanceM: Number,
+      notes: [String], // e.g. which API failed
       fetchedAt: Date,
     },
 

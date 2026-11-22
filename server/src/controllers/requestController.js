@@ -1,4 +1,10 @@
-const { Request, User, Camp } = require('../models');
+const mongoose = require('mongoose');
+const { Request, User, Camp, ShortageOffer, Notification } = require('../models');
+const { sendOperationalEmail } = require('../services/email');
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ADMIN endpoints (used by admin routes)
+// ════════════════════════════════════════════════════════════════════════════
 
 // ── Admin: List all requests & complaints with filters and summary counts ──
 async function getAdminRequests(req, res) {
@@ -52,7 +58,6 @@ async function getAdminRequests(req, res) {
             in_progress: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
             resolved: { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } },
             rejected: { $sum: { $cond: [{ $eq: ['$status', 'rejected'] }, 1, 0] } },
-            // Only count UNRESOLVED critical and high items (needs immediate action)
             critical: {
               $sum: {
                 $cond: [
@@ -138,67 +143,6 @@ async function getAdminRequests(req, res) {
   }
 }
 
-// ── Create a Request or Complaint (Admin or Resident/User) ───────────────────
-async function createRequest(req, res) {
-  try {
-    const {
-      title,
-      type,
-      category,
-      details,
-      priority,
-      location,
-      campId,
-      userId,
-    } = req.body;
-
-    if (!category) {
-      return res.status(400).json({ message: 'Category is required.' });
-    }
-
-    if (!details || !String(details).trim()) {
-      return res.status(400).json({ message: 'Details description is required.' });
-    }
-
-    // Determine target user
-    const targetUserId = (req.user.role === 'admin' && userId) ? userId : req.user._id;
-
-    // Inferred type if not specified
-    let targetType = type;
-    if (!targetType) {
-      targetType = ['problem', 'protection'].includes(category) ? 'complaint' : 'request';
-    }
-
-    // Default title if not provided
-    const autoTitle = title && String(title).trim()
-      ? String(title).trim()
-      : `${targetType === 'complaint' ? 'Complaint' : 'Assistance Request'} regarding ${category}`;
-
-    const newRequest = await Request.create({
-      userId: targetUserId,
-      title: autoTitle,
-      type: targetType,
-      category,
-      details: String(details).trim(),
-      priority: priority || 'medium',
-      location: location || '',
-      campId: campId || undefined,
-      status: 'pending',
-    });
-
-    const populated = await Request.findById(newRequest._id)
-      .populate('userId', 'fullName email role')
-      .populate('campId', 'name location');
-
-    return res.status(201).json({
-      message: `${targetType === 'complaint' ? 'Complaint' : 'Request'} submitted successfully.`,
-      request: populated,
-    });
-  } catch (error) {
-    return res.status(500).json({ message: error.message || 'Failed to create request.' });
-  }
-}
-
 // ── Admin: Update status, priority, or resolution note ──────────────────────
 async function updateRequestStatus(req, res) {
   try {
@@ -273,7 +217,7 @@ async function escalateRequest(req, res) {
     request.escalatedTo = targetDept;
 
     const timestamp = new Date().toLocaleString();
-    const escalationLog = `[🚨 ESCALATED on ${timestamp} to ${targetDept}] ${notes || 'Escalated for immediate emergency intervention and high-level resource mobilization.'}`;
+    const escalationLog = `[ESCALATED on ${timestamp} to ${targetDept}] ${notes || 'Escalated for immediate emergency intervention and high-level resource mobilization.'}`;
     request.adminNotes = request.adminNotes ? `${escalationLog}\n\n${request.adminNotes}` : escalationLog;
 
     await request.save();
@@ -306,7 +250,7 @@ async function deleteRequest(req, res) {
   }
 }
 
-// ── User / Resident: View own requests and complaints ───────────────────────
+// ── User / Resident: View own requests and complaints (legacy route) ────────
 async function getUserRequests(req, res) {
   try {
     const items = await Request.find({ userId: req.user._id })
@@ -319,11 +263,197 @@ async function getUserRequests(req, res) {
   }
 }
 
+// ── Legacy: Create a Request or Complaint (from old /api/requests route) ────
+async function createRequestLegacy(req, res) {
+  try {
+    const {
+      title,
+      type,
+      category,
+      details,
+      priority,
+      location,
+      campId,
+      userId,
+    } = req.body;
+
+    if (!category) {
+      return res.status(400).json({ message: 'Category is required.' });
+    }
+
+    if (!details || !String(details).trim()) {
+      return res.status(400).json({ message: 'Details description is required.' });
+    }
+
+    const targetUserId = (req.user.role === 'admin' && userId) ? userId : req.user._id;
+
+    let targetType = type;
+    if (!targetType) {
+      targetType = ['problem', 'protection'].includes(category) ? 'complaint' : 'request';
+    }
+
+    const autoTitle = title && String(title).trim()
+      ? String(title).trim()
+      : `${targetType === 'complaint' ? 'Complaint' : 'Assistance Request'} regarding ${category}`;
+
+    const newRequest = await Request.create({
+      userId: targetUserId,
+      title: autoTitle,
+      type: targetType,
+      category,
+      details: String(details).trim(),
+      priority: priority || 'medium',
+      location: location || '',
+      campId: campId || undefined,
+      status: 'pending',
+    });
+
+    const populated = await Request.findById(newRequest._id)
+      .populate('userId', 'fullName email role')
+      .populate('campId', 'name location');
+
+    return res.status(201).json({
+      message: `${targetType === 'complaint' ? 'Complaint' : 'Request'} submitted successfully.`,
+      request: populated,
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || 'Failed to create request.' });
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  RESIDENT endpoints (used by /api/resident routes)
+// ════════════════════════════════════════════════════════════════════════════
+
+const REQUEST_CATEGORIES = ['food', 'water', 'medicine', 'shelter', 'problem', 'protection'];
+const EMAIL_CATEGORIES = ['food', 'water', 'medicine', 'shelter'];
+
+function getEmailCategory(request) {
+  if (request.isRestricted || request.category === 'protection') return null;
+  return EMAIL_CATEGORIES.includes(request.category) ? request.category : null;
+}
+
+async function listOpenCamps(req, res) {
+  const camps = await Camp.find({ status: { $ne: 'closed' } })
+    .select('name location status')
+    .sort({ createdAt: -1 });
+  res.json(camps);
+}
+
+async function listMyRequests(req, res) {
+  const requests = await Request.find({ userId: req.user._id })
+    .populate('campId', 'name')
+    .sort({ createdAt: -1 })
+    .limit(100);
+  if (!requests.length) return res.json([]);
+
+  const notifications = await Notification.find({ requestId: { $in: requests.map((request) => request._id) } })
+    .populate('ngoId', 'organizationName');
+  const notificationsByRequest = new Map();
+  for (const notification of notifications) {
+    const requestId = String(notification.requestId);
+    if (!notificationsByRequest.has(requestId)) notificationsByRequest.set(requestId, []);
+    notificationsByRequest.get(requestId).push({
+      ngoName: notification.ngoId?.organizationName || 'NGO',
+      status: notification.status,
+    });
+  }
+
+  res.json(requests.map((request) => ({
+    ...request.toObject(),
+    emailNotifications: notificationsByRequest.get(String(request._id)) || [],
+  })));
+}
+
+async function createRequest(req, res) {
+  const { campId, category, details } = req.body;
+  if (!mongoose.isValidObjectId(campId)) return res.status(400).json({ message: 'Choose a valid camp.' });
+  if (!REQUEST_CATEGORIES.includes(category)) return res.status(400).json({ message: 'Choose a valid request category.' });
+  const cleanDetails = typeof details === 'string' ? details.trim() : '';
+  if (!cleanDetails || cleanDetails.length > 2000)
+    return res.status(400).json({ message: 'Describe the request in 1–2,000 characters.' });
+
+  const camp = await Camp.findOne({ _id: campId, status: { $ne: 'closed' } });
+  if (!camp) return res.status(404).json({ message: 'Active camp not found.' });
+
+  const request = await Request.create({
+    userId: req.user._id,
+    campId: camp._id,
+    category,
+    details: cleanDetails,
+    isRestricted: category === 'protection',
+  });
+  const notificationMessage = request.isRestricted
+    ? 'Protection requests are visible to the camp manager only.'
+    : 'Your request was recorded for the camp manager.';
+  let notifiedNgos = [];
+  let emailWarning = '';
+  const emailCategory = getEmailCategory(request);
+
+  if (emailCategory) {
+    const offers = await ShortageOffer.find({
+      campId: camp._id,
+      resource: emailCategory,
+      status: 'accepted',
+    }).populate({
+      path: 'ngoId',
+      select: 'organizationName userId',
+      populate: { path: 'userId', select: 'email' },
+    });
+    const recipients = new Map();
+    for (const offer of offers) {
+      const email = offer.ngoId?.userId?.email;
+      if (email) recipients.set(String(offer.ngoId._id), { email, ngo: offer.ngoId });
+    }
+
+    if (recipients.size) {
+      const targets = [...recipients.values()];
+      let deliveryError;
+      try {
+        await sendOperationalEmail({
+          to: process.env.SMTP_FROM,
+          bcc: targets.map((target) => target.email),
+          subject: `New ${category} request for ${camp.name}`,
+          text: `A new ${category} request was submitted for ${camp.name}.\n\nDetails: ${cleanDetails}\n\nPlease coordinate with the camp manager.`,
+        });
+        notifiedNgos = targets.map(({ ngo }) => ngo.organizationName);
+      } catch (error) {
+        deliveryError = error;
+      }
+      try {
+        await Notification.insertMany(targets.map(({ ngo }) => ({
+          requestId: request._id,
+          ngoId: ngo._id,
+          status: deliveryError ? 'failed' : 'sent',
+          ...(deliveryError ? { error: deliveryError.message } : {}),
+        })));
+      } catch (notificationError) {
+        console.error('Failed to record provider notification status:', notificationError.message);
+        emailWarning = deliveryError
+          ? 'Your request was saved, but provider email failed and its delivery status could not be recorded.'
+          : 'Your request and provider email were sent, but delivery status could not be recorded. Please do not resubmit.';
+      }
+      if (deliveryError && !emailWarning)
+        emailWarning = 'Your request was saved, but provider email could not be sent. The camp manager can still review it.';
+    } else {
+      emailWarning = 'No accepted NGO provider is assigned for this service; the camp manager can still review your request.';
+    }
+  }
+
+  res.status(201).json({ request, notifiedNgos, notificationMessage, emailWarning });
+}
+
 module.exports = {
+  // Admin
   getAdminRequests,
-  createRequest,
   updateRequestStatus,
   escalateRequest,
   deleteRequest,
   getUserRequests,
+  createRequestLegacy,
+  // Resident
+  listOpenCamps,
+  listMyRequests,
+  createRequest,
+  getEmailCategory,
 };

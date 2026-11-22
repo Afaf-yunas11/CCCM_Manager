@@ -47,7 +47,7 @@ const requestSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// protection complaints are always restricted
+// protection complaints are always restricted; problem category → complaint type
 requestSchema.pre('validate', function (next) {
   if (this.category === 'protection') {
     this.isRestricted = true;
