@@ -1,4 +1,5 @@
 const { Camp, User, Disaster, CampNgo } = require('../models');
+const { sanitize, escapeHtml } = require('../utils/sanitize');
 
 // ── Admin: Get all camps with status checks and statistics ─────────────────
 async function getCamps(req, res) {
@@ -105,7 +106,8 @@ async function createCamp(req, res) {
       resources,
     } = req.body;
 
-    if (!name || !String(name).trim()) {
+    const cleanName = escapeHtml(sanitize(name));
+    if (!cleanName) {
       return res.status(400).json({ message: 'Camp name is required.' });
     }
 
@@ -125,7 +127,7 @@ async function createCamp(req, res) {
     ];
 
     const camp = await Camp.create({
-      name: String(name).trim(),
+      name: cleanName,
       capacity: Number(capacity),
       population: Number(population) || 0,
       managerId: targetManagerId,
@@ -165,7 +167,7 @@ async function updateCamp(req, res) {
     const camp = await Camp.findById(id);
     if (!camp) return res.status(404).json({ message: 'Camp not found.' });
 
-    if (name !== undefined) camp.name = String(name).trim();
+    if (name !== undefined) camp.name = escapeHtml(sanitize(name));
     if (capacity !== undefined) camp.capacity = Number(capacity);
     if (population !== undefined) camp.population = Number(population);
     if (managerId !== undefined) camp.managerId = managerId;

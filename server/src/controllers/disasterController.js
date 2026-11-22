@@ -1,16 +1,19 @@
 const { Disaster, DisasterCommitment, Ngo } = require('../models');
+const { sanitize, escapeHtml } = require('../utils/sanitize');
 
 // ── Admin: Create a disaster ────────────────────────────────────────────────
 async function createDisaster(req, res) {
   try {
-    const { title, type, description, location, severity, affectedPopulation, startDate } = req.body;
+    const { type, location, severity, affectedPopulation, startDate } = req.body;
+    const title = escapeHtml(sanitize(req.body.title));
+    const description = escapeHtml(sanitize(req.body.description));
 
-    if (!title || !title.trim()) {
+    if (!title) {
       return res.status(400).json({ message: 'Disaster title is required.' });
     }
 
     const disaster = await Disaster.create({
-      title: title.trim(),
+      title,
       type: type || 'other',
       description: description || '',
       location: location || {},

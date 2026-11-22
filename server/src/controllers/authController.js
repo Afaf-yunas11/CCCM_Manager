@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const jwt = require('jsonwebtoken');
 const { User, EmailVerificationCode, Ngo } = require('../models');
 const { sendVerificationCode } = require('../services/email');
+const { sanitize, escapeHtml } = require('../utils/sanitize');
 
 const allowedSignupRoles = ['admin', 'ngo', 'campManager', 'affectedPerson'];
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -54,12 +55,11 @@ function asyncHandler(handler) {
 }
 
 const signup = asyncHandler(async (req, res) => {
-  const fullName = typeof req.body.fullName === 'string' ? req.body.fullName.trim() : '';
-  const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+  const fullName = escapeHtml(sanitize(req.body.fullName));
+  const email = typeof req.body.email === 'string' ? sanitize(req.body.email).toLowerCase() : '';
   const password = typeof req.body.password === 'string' ? req.body.password : '';
   const role = req.body.role;
-  const organizationName =
-    typeof req.body.organizationName === 'string' ? req.body.organizationName.trim() : '';
+  const organizationName = escapeHtml(sanitize(req.body.organizationName));
 
   if (!fullName || fullName.length > 100 || !emailPattern.test(email) || email.length > 254) {
     return res.status(400).json({ error: 'Enter a valid name and email address.' });

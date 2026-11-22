@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { Request, User, Camp, ShortageOffer, Notification } = require('../models');
 const { sendOperationalEmail } = require('../services/email');
+const { sanitize, escapeHtml } = require('../utils/sanitize');
 
 // ════════════════════════════════════════════════════════════════════════════
 //  ADMIN endpoints (used by admin routes)
@@ -176,9 +177,9 @@ async function updateRequestStatus(req, res) {
       request.priority = priority.toLowerCase();
     }
 
-    if (adminNotes !== undefined) request.adminNotes = adminNotes;
-    if (resolutionDetails !== undefined) request.resolutionDetails = resolutionDetails;
-    if (rejectionReason !== undefined) request.rejectionReason = rejectionReason;
+    if (adminNotes !== undefined) request.adminNotes = escapeHtml(sanitize(adminNotes));
+    if (resolutionDetails !== undefined) request.resolutionDetails = escapeHtml(sanitize(resolutionDetails));
+    if (rejectionReason !== undefined) request.rejectionReason = escapeHtml(sanitize(rejectionReason));
     if (assignedTo !== undefined) request.assignedTo = assignedTo || null;
 
     await request.save();
@@ -292,8 +293,9 @@ async function createRequestLegacy(req, res) {
       targetType = ['problem', 'protection'].includes(category) ? 'complaint' : 'request';
     }
 
-    const autoTitle = title && String(title).trim()
-      ? String(title).trim()
+    const rawTitle = sanitize(title);
+    const autoTitle = rawTitle
+      ? escapeHtml(rawTitle)
       : `${targetType === 'complaint' ? 'Complaint' : 'Assistance Request'} regarding ${category}`;
 
     const newRequest = await Request.create({
@@ -301,9 +303,9 @@ async function createRequestLegacy(req, res) {
       title: autoTitle,
       type: targetType,
       category,
-      details: String(details).trim(),
+      details: escapeHtml(sanitize(details)),
       priority: priority || 'medium',
-      location: location || '',
+      location: escapeHtml(sanitize(location)),
       campId: campId || undefined,
       status: 'pending',
     });
@@ -369,7 +371,7 @@ async function createRequest(req, res) {
   const { campId, category, details } = req.body;
   if (!mongoose.isValidObjectId(campId)) return res.status(400).json({ message: 'Choose a valid camp.' });
   if (!REQUEST_CATEGORIES.includes(category)) return res.status(400).json({ message: 'Choose a valid request category.' });
-  const cleanDetails = typeof details === 'string' ? details.trim() : '';
+  const cleanDetails = escapeHtml(sanitize(details));
   if (!cleanDetails || cleanDetails.length > 2000)
     return res.status(400).json({ message: 'Describe the request in 1–2,000 characters.' });
 

@@ -1,6 +1,7 @@
 // server/src/controllers/managerController.js
 const mongoose = require('mongoose');
 const { Disaster, SiteAssessment, Camp, Request, ShortageOffer, Notification, NgoComplaint } = require('../models');
+const { sanitize, escapeHtml } = require('../utils/sanitize');
 const { calculateRequirements, assessSite } = require('../config/guidelines');
 const { fetchSiteData } = require('../services/siteApis');
 const { generateReport, formatReport } = require('../services/llmReport');
@@ -109,13 +110,14 @@ async function createCamp(req, res) {
   if (!assessment) return res.status(404).json({ message: 'Assessment not found.' });
   if (assessment.result === 'not_suitable' && req.body.acceptUnsuitableRisk !== true)
     return res.status(409).json({ message: 'Confirm that you understand the risks before creating a camp on a site assessed as not suitable.' });
-  if (!name || !String(name).trim()) return res.status(400).json({ message: 'Camp name is required.' });
+  const cleanName = escapeHtml(sanitize(name));
+  if (!cleanName) return res.status(400).json({ message: 'Camp name is required.' });
   const cap = Number(capacity);
   if (!Number.isInteger(cap) || cap < 1) return res.status(400).json({ message: 'Capacity must be a whole number of at least 1.' });
   if (await Camp.exists({ siteAssessmentId: assessment._id })) return res.status(409).json({ message: 'A camp already exists for this assessment.' });
 
   const camp = await Camp.create({
-    name: String(name).trim(),
+    name: cleanName,
     managerId: req.user._id,
     disasterId: disasterId || assessment.disasterId || undefined,
     siteAssessmentId: assessment._id,
@@ -262,8 +264,8 @@ async function createNgoComplaint(req, res) {
   if (!['food', 'water', 'medicine', 'shelter', 'sanitation', 'other'].includes(category))
     return res.status(400).json({ message: 'Choose a valid complaint category.' });
 
-  const subject = typeof req.body.subject === 'string' ? req.body.subject.trim() : '';
-  const details = typeof req.body.details === 'string' ? req.body.details.trim() : '';
+  const subject = escapeHtml(sanitize(req.body.subject));
+  const details = escapeHtml(sanitize(req.body.details));
   if (!subject || subject.length > 150)
     return res.status(400).json({ message: 'Enter a complaint subject of 1–150 characters.' });
   if (!details || details.length > 2000)

@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { Ngo, DisasterCommitment, Camp, ShortageOffer, NgoComplaint } = require('../models');
+const { sanitize, escapeHtml } = require('../utils/sanitize');
 
 const CAMP_SUPPORT_RESOURCES = ['water', 'food', 'medicine', 'shelter', 'sanitation', 'other'];
 
@@ -32,10 +33,10 @@ async function updateMyProfile(req, res) {
       if (!String(organizationName).trim()) {
         return res.status(400).json({ message: 'Organization name cannot be empty.' });
       }
-      ngo.organizationName = String(organizationName).trim();
+      ngo.organizationName = escapeHtml(sanitize(organizationName));
     }
-    if (description !== undefined) ngo.description = description;
-    if (contactNumber !== undefined) ngo.contactNumber = contactNumber;
+    if (description !== undefined) ngo.description = escapeHtml(sanitize(description));
+    if (contactNumber !== undefined) ngo.contactNumber = sanitize(contactNumber);
     if (req.body.operatingAreas !== undefined) ngo.operatingAreas = toArray(req.body.operatingAreas);
     if (req.body.services !== undefined) ngo.services = toArray(req.body.services);
 
@@ -101,7 +102,7 @@ async function listCampsForSupport(req, res) {
 async function offerCampSupport(req, res) {
   if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid camp.' });
   const resource = typeof req.body.resource === 'string' ? req.body.resource : '';
-  const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+  const message = escapeHtml(sanitize(req.body.message));
   if (!CAMP_SUPPORT_RESOURCES.includes(resource)) return res.status(400).json({ message: 'Select a valid facility or service.' });
   if (message.length > 1000) return res.status(400).json({ message: 'Facility details must be 1,000 characters or fewer.' });
 
